@@ -14,7 +14,11 @@ credentials*
 access.json
 state.json
 .box-binder-state*
-machines.yaml          # the live inventory may name internal hosts; commit machines.example.yaml only
+# the live inventory may name internal hosts; commit machines.example.yaml only
+machines.yaml
+
+# self-evolve run artifacts (sandboxes, events, holdout) - never commit
+.sie/
 
 # python
 __pycache__/
