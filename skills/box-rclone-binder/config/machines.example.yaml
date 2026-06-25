@@ -1,0 +1,38 @@
+# box-binder machine inventory — COMMIT-SAFE. Contains ZERO secret values, only pointers to
+# where secrets live. `box-binder verify-config` hard-fails if a literal secret appears here.
+version: 1
+
+defaults:
+  auth_mode: jwt              # jwt | ccg-native | ccg-mint | oauth-broker
+  box_sub_type: enterprise    # enterprise | user
+  remote_name: box
+  root_folder_id: "0"         # Box folder URL tail; "0" = service-account root
+  rclone_min_version: "1.71.0"
+  config_dir: /etc/box-binder
+  health_interval: "*:0/15"   # systemd OnCalendar; every 15 min
+  mint_interval_min: 45       # ccg-mint only: re-mint before the 60-min expiry
+  impersonate_user_id: ""     # optional: as-user (needs App + Enterprise access)
+
+secrets:
+  # Only WHERE to read from — never the value. `source` selects the resolver.
+  source: env                 # env | file | op | vault | aws-ssm
+  jwt_config_ref: BOX_BINDER_JWT_CONFIG       # env var / op:// path holding config.json content
+  client_id_ref: BOX_BINDER_CLIENT_ID
+  client_secret_ref: BOX_BINDER_CLIENT_SECRET
+  box_subject_id_ref: BOX_BINDER_ENTERPRISE_ID
+  rclone_config_pass_ref: BOX_BINDER_RCLONE_PASS   # only if you fall back to an encrypted conf
+
+hosts:
+  - host: 203.0.113.10
+    ssh: "root@203.0.113.10"
+    ssh_opts: "-o BatchMode=yes -o ConnectTimeout=12 -o StrictHostKeyChecking=accept-new"
+    # optional per-host overrides: root_folder_id / auth_mode / config_dir
+  # - host: <add the rest of your servers here>
+
+alerts:
+  discord: true
+  relay: "the notifier"
+  on_recovered: INFO          # auth failed then self-healed
+  on_heal_failed: CRITICAL    # self-heal failed; human needed
+  on_drift: WARN              # cross-host structure drift
+  jitter_sec: 30              # stagger probes/alerts to dodge 429
