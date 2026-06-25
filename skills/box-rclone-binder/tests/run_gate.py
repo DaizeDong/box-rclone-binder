@@ -3,6 +3,8 @@
 
 Used by self-evolve as a regression gate. Exit 0 iff every signal passes.
 """
+import contextlib
+import io
 import json
 import os
 import sys
@@ -30,13 +32,15 @@ def main():
     out, all_ok = [], True
     for name, cls in SIGNALS:
         suite = unittest.defaultTestLoader.loadTestsFromTestCase(cls)
-        buf = open(os.devnull, "w")
-        res = unittest.TextTestRunner(stream=buf, verbosity=0).run(suite)
+        # Suppress the tested CLI's own stdout so this gate emits clean, parseable JSON.
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
         ok = res.wasSuccessful()
         all_ok = all_ok and ok
+        detail = [str(t) for t, _ in (res.failures + res.errors)]
         out.append({"signal": name, "tests": res.testsRun,
                     "failures": len(res.failures), "errors": len(res.errors),
-                    "pass": ok})
+                    "pass": ok, "failed_tests": detail})
     print(json.dumps({"gate": "box-binder", "signals": out,
                       "passed": sum(s["pass"] for s in out), "total": len(out),
                       "all_pass": all_ok}, indent=2))
