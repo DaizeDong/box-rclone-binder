@@ -1,0 +1,29 @@
+# box-binder - NEVER commit secret material. Pointers only live in machines.yaml.
+*.conf
+rclone.conf
+config.json
+*.env
+secrets.env
+runtime.env
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*
+*.token
+access.json
+state.json
+.box-binder-state*
+machines.yaml          # the live inventory may name internal hosts; commit machines.example.yaml only
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# os / editor
+.DS_Store
+Thumbs.db
+*.swp

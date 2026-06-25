@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Thin wrapper invoked by systemd/cron. Runs the read-only health check and lets box-binder
+# route alerts. Keeps -v (never -vv: -vv can leak tokens). No secret ever on argv.
+set -eu
+CONFIG="${BOX_BINDER_CONFIG:-/etc/box-binder/machines.yaml}"
+exec python3 /opt/box-binder/box_binder.py healthcheck -c "$CONFIG" -v \
+    --json >> /var/log/box-binder/health.log 2>&1

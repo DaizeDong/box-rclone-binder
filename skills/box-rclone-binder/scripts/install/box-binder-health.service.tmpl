@@ -1,0 +1,11 @@
+[Unit]
+Description=box-binder health check (read-only probe + self-heal)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/box-binder/secrets.env
+EnvironmentFile=-/etc/box-binder/runtime.env
+ExecStart=/usr/local/bin/box-binder-health
+Nice=10
