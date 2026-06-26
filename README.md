@@ -62,6 +62,31 @@ python scripts/box_binder.py healthcheck   -c machines.yaml --json   # read-only
 python tests/run_gate.py                                             # full mock acceptance gate
 ```
 
+## Config
+
+`box-rclone-binder` is **config-bearing** — it reads a per-fleet inventory (`machines.yaml`: hosts,
+auth mode, and **pointers** to where secrets live). Full contract:
+[CONFIG.md](skills/box-rclone-binder/CONFIG.md).
+
+- **Mount (discovery order):** `-c/--config <path>` → `$BOX_RCLONE_BINDER_CONFIG` →
+  `$BOX_RCLONE_BINDER_CONFIG_DIR` → `./machines.yaml` → `~/.box-rclone-binder-config/machines.yaml`
+  → `~/.config/box-rclone-binder/machines.yaml`. First that resolves wins; none = `EXIT_CONFIG (3)`
+  naming the path it looked for.
+- **First time:**
+  ```bash
+  cd skills/box-rclone-binder
+  python scripts/init_config.py                       # stamp machines.yaml from the template (deterministic)
+  export BOX_RCLONE_BINDER_CONFIG=~/.box-rclone-binder-config/machines.yaml  # or pass --out / -c
+  # edit hosts, keep secrets as *_ref pointers, then:
+  python scripts/box_binder.py verify-config --json   # doctor: schema + pointer-only + no inline secrets
+  ```
+- **Switch configs (hot-swap):** `machines.yaml` is self-contained (pointer-only, no hardcoded
+  paths) — repoint the env var or pass `-c`:
+  `export BOX_RCLONE_BINDER_CONFIG=~/configs/fleet-prod.yaml` ↔ `~/configs/fleet-staging.yaml`.
+- **Secrets:** Mode B — `machines.yaml`, `*.env`, `*.pem`, `*.key`, `rclone.conf` are gitignored and
+  never enter git; only `*_ref` pointers live in the inventory, real values stay in your backend
+  (`env`/`file`/`op`/`vault`/`aws-ssm`). `verify-config` hard-fails on any inline secret.
+
 ## How to invoke
 
 Trigger phrases: "bind my Box drive to multiple servers with rclone", "rclone Box auto-refresh /
