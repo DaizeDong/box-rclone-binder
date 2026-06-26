@@ -132,6 +132,58 @@ class S1Refresh(unittest.TestCase):
         finally:
             srv.shutdown()
 
+    # --- stale-lock recovery (audit medium: crashed holder must not dead-lock all refreshes) --
+    def test_stale_lock_dead_holder_recovered(self):
+        lp = os.path.join(self.tmp, "dead.lock")
+        with open(lp, "w") as f:
+            f.write("424242")                       # residual pid from a crashed run
+        lk = refreshmod.FileLock(lp, pid_alive=lambda p: False).acquire()
+        try:
+            self.assertEqual(open(lp).read().strip(), str(os.getpid()))  # took it over
+        finally:
+            lk.release()
+
+    def test_live_fresh_lock_still_blocks(self):
+        lp = os.path.join(self.tmp, "live.lock")
+        a = refreshmod.FileLock(lp, pid_alive=lambda p: True).acquire()
+        try:
+            with self.assertRaises(refreshmod.Locked):
+                refreshmod.FileLock(lp, pid_alive=lambda p: True).acquire()
+        finally:
+            a.release()
+
+    def test_hung_lock_recovered_by_mtime(self):
+        lp = os.path.join(self.tmp, "hung.lock")
+        with open(lp, "w") as f:
+            f.write("424242")
+        os.utime(lp, (1.0, 1.0))                     # ancient mtime => hung even if "alive"
+        lk = refreshmod.FileLock(lp, stale_after=60, pid_alive=lambda p: True).acquire()
+        try:
+            self.assertEqual(open(lp).read().strip(), str(os.getpid()))
+        finally:
+            lk.release()
+
+    def test_broker_recovers_after_crash_residual_lock(self):
+        # End-to-end: a crash left lock+state behind; refresh must self-heal, not stay Locked.
+        state = os.path.join(self.tmp, "state.json")
+        with open(state, "w") as f:
+            json.dump({"refresh_token": "RT-OLD"}, f)
+        lock = os.path.join(self.tmp, "broker.lock")
+        with open(lock, "w") as f:
+            f.write("424242")                        # orphaned lock from the crashed master
+        orig = refreshmod._pid_alive
+        refreshmod._pid_alive = lambda p: False       # holder is provably gone
+        srv, url = start_token_server([(200, {"access_token": "AT", "refresh_token": "RT-NEW",
+                                              "expires_in": 3600})])
+        try:
+            out = refreshmod.broker_refresh(state, url, lock, ["s1"], "cid", "csec")
+        finally:
+            srv.shutdown()
+            refreshmod._pid_alive = orig
+        self.assertIn("token_minted", out["events"])  # recovered the stale lock and refreshed
+        with open(state) as f:
+            self.assertEqual(json.load(f)["refresh_token"], "RT-NEW")
+
     def setUp(self):
         import tempfile
         self.tmp = tempfile.mkdtemp()
@@ -211,6 +263,21 @@ class S4Config(unittest.TestCase):
         p = os.path.join(tempfile.mkdtemp(), "bad2.yaml")
         with open(p, "w") as f:
             f.write("version: 1\ndefaults:\n  auth_mode: telepathy\n  remote_name: box\n"
+                    "hosts:\n  - host: h1\n")
+        with self.assertRaises(cfgmod.ConfigError):
+            cfgmod.load(p)
+
+    def test_block_scalar_secret_continuation_rejected(self):
+        # A literal secret smuggled onto the indented continuation of a secret-bearing block
+        # scalar (`auth_token: |`) leaks on a no-colon line that validate() never checks and the
+        # per-line key:value scan used to skip. The continuation must still be caught.
+        import tempfile
+        p = os.path.join(tempfile.mkdtemp(), "block.yaml")
+        with open(p, "w") as f:
+            f.write("version: 1\n"
+                    "defaults:\n  auth_mode: jwt\n  remote_name: box\n"
+                    "secrets:\n  source: env\n  auth_token: |\n"
+                    "    LEAKEDsecretABCDEFGHIJKLMNOP0123456789qrstuvwx\n"
                     "hosts:\n  - host: h1\n")
         with self.assertRaises(cfgmod.ConfigError):
             cfgmod.load(p)
@@ -360,6 +427,13 @@ class S10CLI(unittest.TestCase):
         msg = alertsmod.scrub("token=AT-supersecret refresh_token=RT-zzz")
         self.assertNotIn("AT-supersecret", msg)
         self.assertNotIn("RT-zzz", msg)
+
+    def test_alerts_scrub_urlsafe_blob(self):
+        # An unlabeled URL-safe base64 token blob (contains - and _) must still be scrubbed.
+        leak = "A1b2C3d4-_e5F6g7H8-_i9J0k1L2-_m3N4o5P6-_q7R8"  # 44 urlsafe chars, no label
+        msg = alertsmod.scrub("heal_failed for host h1: %s end" % leak)
+        self.assertNotIn(leak, msg)
+        self.assertIn("[REDACTED]", msg)
 
 
 if __name__ == "__main__":
