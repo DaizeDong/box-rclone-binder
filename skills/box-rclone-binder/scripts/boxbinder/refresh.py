@@ -38,17 +38,116 @@ class Locked(RuntimeError):
 
 # ---- cross-platform single-instance lock (broker) ----------------------------------------
 
+# A broker refresh completes in seconds. A lock far older than this is from a crashed/hung
+# holder, not a live refresh — recover it instead of dead-locking every future refresh.
+_STALE_LOCK_SECONDS = 900
+
+
+def _pid_alive(pid: int) -> bool:
+    """Best-effort cross-platform liveness probe.
+
+    Returns False only when the process is provably gone; on any uncertainty it returns True
+    so we never steal a lock that might still be held by a live process.
+    """
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            k = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if not h:
+                return False  # no such process / not openable as a live process
+            try:
+                code = ctypes.c_ulong()
+                if k.GetExitCodeProcess(h, ctypes.byref(code)):
+                    return code.value == STILL_ACTIVE
+                return True
+            finally:
+                k.CloseHandle(h)
+        except Exception:
+            return True  # cannot determine -> assume alive (fail safe: keep the lock)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists but owned by another user
+    except OSError:
+        return True
+    return True
+
+
 class FileLock:
-    def __init__(self, path):
+    """Single-instance lock with stale-holder recovery.
+
+    A crash that leaves the lock file behind would otherwise dead-lock every future
+    broker_refresh (permanent ``Locked`` -> refresh_token expires unattended). On contention we
+    take the lock over iff its holder is provably dead OR the lock is far older than any real
+    refresh; otherwise we block. ``pid_alive`` is injectable so the recovery path is hermetically
+    testable without spawning/killing real processes.
+    """
+
+    def __init__(self, path, stale_after=_STALE_LOCK_SECONDS, pid_alive=None):
         self.path = path
         self._fd = None
+        self.stale_after = stale_after
+        self._pid_alive = pid_alive
+
+    def _alive(self, pid):
+        # Resolve the probe at call time so a test that monkeypatches the module fn is honored.
+        return (self._pid_alive or _pid_alive)(pid)
+
+    def _read_holder(self):
+        try:
+            with open(self.path, "r") as f:
+                raw = f.read().strip()
+            pid = int(raw) if raw.isdigit() else -1
+        except (OSError, ValueError):
+            pid = -1
+        try:
+            age = time.time() - os.path.getmtime(self.path)
+        except OSError:
+            age = None
+        return pid, age
+
+    def _is_stale(self):
+        pid, age = self._read_holder()
+        if pid <= 0:
+            return True  # empty / unparseable holder -> orphan
+        if not self._alive(pid):
+            return True  # holder process is gone (crash) -> orphan
+        if age is not None and self.stale_after is not None and age > self.stale_after:
+            return True  # holder alive but lock far older than any real refresh -> hung
+        return False
+
+    def _create(self):
+        self._fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+        os.write(self._fd, str(os.getpid()).encode())
 
     def acquire(self):
         try:
-            self._fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
-            os.write(self._fd, str(os.getpid()).encode())
+            self._create()
+            return self
         except FileExistsError:
+            pass
+        # Contention: only take over a provably stale lock; a live, fresh holder still blocks.
+        if not self._is_stale():
             raise Locked("another box-binder refresh holds %s" % self.path)
+        try:
+            os.remove(self.path)
+        except OSError:
+            pass
+        try:
+            self._create()  # re-create atomically; losing this race means a live racer won
+        except FileExistsError:
+            raise Locked("lock %s re-taken during stale recovery" % self.path)
         return self
 
     def release(self):
