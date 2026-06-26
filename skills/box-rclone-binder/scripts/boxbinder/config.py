@@ -58,13 +58,35 @@ class Config:
         return host.get("auth_mode", self.defaults.get("auth_mode", "jwt"))
 
 
+def _is_secretish(base: str) -> bool:
+    """True if a (normalized) key name is one a secret value could plausibly hide under."""
+    if any(base == k or base.endswith("_" + k) for k in _SECRET_VALUE_KEYS):
+        return True
+    return "secret" in base or "token" in base or "private" in base
+
+
 def _scan_inline_secrets(text: str):
     """Return a list of (lineno, reason) for suspected inline secret VALUES."""
     hits = []
+    # Track YAML block-scalar (`key: |` / `key: >`) state: a secret value can hide on the
+    # indented continuation lines (no colon) that the per-line `key: value` logic would skip.
+    block_indent = None      # column of the block-scalar KEY when inside a secret block
     for i, line in enumerate(text.splitlines(), 1):
+        indent = len(line) - len(line.lstrip(" "))
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
+        # Inside a secret block scalar: scan the continuation content itself.
+        if block_indent is not None:
+            if indent > block_indent:
+                if _PEM_RE.search(line) or _JWT_RE.search(line):
+                    hits.append((i, "embedded key/JWT material in block scalar"))
+                    continue
+                content = stripped.split("#", 1)[0].strip().strip("\"'")
+                if content and _BLOB_RE.fullmatch(content) and not _POINTER_RE.match(content):
+                    hits.append((i, "opaque blob on secret block-scalar continuation"))
+                continue
+            block_indent = None  # dedent back to key level -> block ended; fall through
         if _PEM_RE.search(line) or _JWT_RE.search(line):
             hits.append((i, "embedded key/JWT material"))
             continue
@@ -91,6 +113,11 @@ def _scan_inline_secrets(text: str):
                 v = val.strip("\"'")
                 if _BLOB_RE.fullmatch(v) and not _POINTER_RE.match(v):
                     hits.append((i, "opaque blob assigned to '%s'" % key))
+        # A block scalar opened on a secret-bearing key: scan its continuation lines too. This
+        # closes the gap where a literal secret hides under `<secret_key>: |` (incl. *_ref keys,
+        # defense-in-depth) on indented lines that carry no colon.
+        if _is_secretish(base) and val[:1] in ("|", ">"):
+            block_indent = indent
     return hits
 
 

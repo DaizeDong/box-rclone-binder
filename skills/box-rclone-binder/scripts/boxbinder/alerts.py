@@ -14,7 +14,9 @@ _REDACTORS = [
     re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]+)?"),  # JWT
     re.compile(r"(?i)(access_token|refresh_token|client_secret|token)\s*[=:]\s*\S+"),
     re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----[\s\S]+?-----END[^-]+PRIVATE KEY-----"),
-    re.compile(r"\b[A-Za-z0-9+/]{40,}={0,2}\b"),  # long opaque blob
+    # long opaque blob: covers both standard and URL-safe base64 alphabets (-, _) so an
+    # unlabeled URL-safe token blob cannot slip through unscrubbed.
+    re.compile(r"[A-Za-z0-9+/_-]{40,}={0,2}"),
 ]
 
 SEVERITY_PUSH = {"INFO": True, "WARN": True, "CRITICAL": True, "DEBUG": False}
