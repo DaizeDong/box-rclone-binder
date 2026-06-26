@@ -1,4 +1,5 @@
 # box-binder - NEVER commit secret material. Pointers only live in machines.yaml.
+secrets/
 *.conf
 rclone.conf
 config.json
