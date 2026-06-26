@@ -26,6 +26,48 @@ from boxbinder import refresh as refreshmod
 from boxbinder.drivers import SSHHostDriver
 
 
+CONFIG_ENV = "BOX_RCLONE_BINDER_CONFIG"
+CONFIG_ENV_DIR = "BOX_RCLONE_BINDER_CONFIG_DIR"
+CONFIG_BASENAME = "machines.yaml"
+
+
+def discover_config_path(explicit=None):
+    """Resolve the machines.yaml path (config-spec E2). First hit wins:
+
+      1. explicit -c/--config (file, or dir holding machines.yaml)
+      2. $BOX_RCLONE_BINDER_CONFIG       (file, or dir holding machines.yaml)
+      3. $BOX_RCLONE_BINDER_CONFIG_DIR   (dir holding machines.yaml)
+      4. ./machines.yaml                 (cwd-relative; the historical default)
+      5. ~/.box-rclone-binder-config/machines.yaml
+      6. ~/.config/box-rclone-binder/machines.yaml
+
+    Existence-checked candidates (4-6) only win if present; the cwd default is returned as the
+    last resort even when absent, so the 'config not found' error still names a concrete path.
+    An explicit flag value is honored verbatim (a missing path then surfaces EXIT_CONFIG).
+    """
+    def as_file(p):
+        p = os.path.abspath(os.path.expanduser(p))
+        return os.path.join(p, CONFIG_BASENAME) if os.path.isdir(p) else p
+
+    if explicit:
+        return as_file(explicit)
+    val = os.environ.get(CONFIG_ENV)
+    if val:
+        return as_file(val)
+    d = os.environ.get(CONFIG_ENV_DIR)
+    if d:
+        return os.path.join(os.path.abspath(os.path.expanduser(d)), CONFIG_BASENAME)
+    candidates = [
+        os.path.abspath(CONFIG_BASENAME),
+        os.path.expanduser(os.path.join("~", ".box-rclone-binder-config", CONFIG_BASENAME)),
+        os.path.expanduser(os.path.join("~", ".config", "box-rclone-binder", CONFIG_BASENAME)),
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return candidates[0]  # cwd ./machines.yaml as the named last resort
+
+
 def _now():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -155,7 +197,10 @@ COMMANDS = {
 def build_parser():
     p = argparse.ArgumentParser(prog="box-binder", description="Bind one Box drive across many servers via rclone.")
     p.add_argument("command", choices=list(COMMANDS))
-    p.add_argument("-c", "--config", default="machines.yaml")
+    p.add_argument("-c", "--config", default=None,
+                   help="path to machines.yaml (file or dir). If omitted, resolved via "
+                        "$BOX_RCLONE_BINDER_CONFIG / $BOX_RCLONE_BINDER_CONFIG_DIR / ./machines.yaml "
+                        "/ ~/.box-rclone-binder-config/ / ~/.config/box-rclone-binder/")
     p.add_argument("-H", "--host", action="append", default=[])
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--json", action="store_true")
@@ -168,10 +213,11 @@ def build_parser():
 
 def run(argv=None, factory=_default_factory):
     args = build_parser().parse_args(argv)
+    cfg_path = discover_config_path(args.config)
     try:
-        cfg = cfgmod.load(args.config)
+        cfg = cfgmod.load(cfg_path)
     except FileNotFoundError:
-        return _emit(args, EXIT_CONFIG, {"command": args.command, "error": "config not found: %s" % args.config, "exit_code": EXIT_CONFIG})
+        return _emit(args, EXIT_CONFIG, {"command": args.command, "error": "config not found: %s" % cfg_path, "exit_code": EXIT_CONFIG})
     except cfgmod.ConfigError as e:
         return _emit(args, EXIT_CONFIG, {"command": args.command, "error": str(e), "exit_code": EXIT_CONFIG})
     code, result = COMMANDS[args.command](cfg, args, factory=factory)

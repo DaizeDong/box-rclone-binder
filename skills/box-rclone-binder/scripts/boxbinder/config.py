@@ -43,7 +43,8 @@ _VALID_SOURCES = ("env", "file", "op", "vault", "aws-ssm")
 class Config:
     def __init__(self, data: dict, path: str = "<memory>"):
         self.path = path
-        self.version = data.get("version", 1)
+        # `version` is the machines.yaml schema_version; `schema_version` is an accepted alias.
+        self.version = data.get("version", data.get("schema_version", 1))
         self.defaults = dict(data.get("defaults") or {})
         self.secrets = dict(data.get("secrets") or {})
         self.alerts = dict(data.get("alerts") or {})
