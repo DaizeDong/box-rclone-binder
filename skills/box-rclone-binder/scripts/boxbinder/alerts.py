@@ -46,10 +46,21 @@ def send(event: str, message: str, relay: str = None, enabled: bool = True) -> d
     result = {"event": event, "severity": sev, "pushed": False, "message": safe}
     if not enabled or sev is None or not SEVERITY_PUSH.get(sev, False):
         return result
-    relay = relay or os.path.expanduser("~/.claude/discord_relay/send.py")
     payload = "[box-binder %s] %s" % (sev, safe)
+    # Pluggable Agent Center egress: explicit relay arg wins (tests/override); else prefer
+    # schedule-reminder's unified relay (#infra stream) when the base is installed; else fall back
+    # to the Big Brother relay (send.py) so this works standalone.
+    if relay:
+        argv = ["python", relay, payload]
+    else:
+        rp = os.environ.get("SCHEDULE_RELAY_PY") or os.path.expanduser(
+            "~/.claude/skills/schedule-reminder/scripts/relay.py")
+        if os.path.isfile(rp):
+            argv = ["python", rp, "send", "--stream", "infra", "--text", payload]
+        else:
+            argv = ["python", os.path.expanduser("~/.claude/discord_relay/send.py"), payload]
     try:
-        subprocess.run(["python", relay, payload], timeout=20,
+        subprocess.run(argv, timeout=20,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         result["pushed"] = True
     except Exception:
