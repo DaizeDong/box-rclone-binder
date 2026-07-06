@@ -35,7 +35,7 @@ access tokens -> naturally multi-host consistent, no rotation to fight. Read
 
 ## Workflow (thin)
 
-1. `box-binder doctor -c machines.yaml` — probe rclone version / ssh / systemd / CCG capability.
+1. `box-binder doctor -c machines.yaml` — probe rclone version / ssh / systemd.
 2. `box-binder verify-config` — schema + secret-pointer-only + NO inline secrets (hard-fails otherwise).
 3. `box-binder deploy [--dry-run]` — idempotently converge each host (atomic writes, systemd timer).
 4. `box-binder healthcheck` — read-only `rclone lsd` probe + cross-host consistency; classify + self-heal.
