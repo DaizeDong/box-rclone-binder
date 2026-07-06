@@ -85,39 +85,6 @@ def render_mint_timer(host: dict) -> str:
     )
 
 
-CRON_BEGIN = "# >>> box-binder >>>"
-CRON_END = "# <<< box-binder <<<"
-
-
-def render_cron_block(host: dict) -> str:
-    cfg_dir = host.get("config_dir", "/etc/box-binder")
-    # */15 by default; whole-block replacement, never append.
-    return (
-        "%s\n"
-        "*/15 * * * * /usr/local/bin/box-binder-health >> /var/log/box-binder/health.log 2>&1\n"
-        "%s\n" % (CRON_BEGIN, CRON_END)
-    )
-
-
-def merge_cron(existing: str, block: str) -> str:
-    """Idempotently replace the box-binder marker block (never append duplicates)."""
-    existing = existing or ""
-    lines = existing.splitlines()
-    out, skipping = [], False
-    for ln in lines:
-        if ln.strip() == CRON_BEGIN:
-            skipping = True
-            continue
-        if ln.strip() == CRON_END:
-            skipping = False
-            continue
-        if not skipping:
-            out.append(ln)
-    base = "\n".join(out).rstrip()
-    sep = "\n" if base else ""
-    return (base + sep + block.rstrip() + "\n") if base else block
-
-
 def desired_artifacts(host: dict) -> dict:
     """Map of {remote_path: content} that deploy will converge the host to (systemd path)."""
     cfg_dir = host.get("config_dir", "/etc/box-binder")

@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here (Keep a Changelog style).
 
+## [0.1.2] - 2026-07-06
+### Fixed
+- **SKILL.md over-claim removed:** the `doctor` workflow step said it probes "CCG capability", but
+  `cmd_doctor` only checks rclone version / ssh / systemd — description corrected to match the code.
+- **Dead code removed:** `remote.py` `render_cron_block` / `merge_cron` / `CRON_BEGIN` / `CRON_END`
+  had zero callers (deploy converges only systemd units via `desired_artifacts`); the unused raw-cron
+  renderer is deleted. Scheduling remains the systemd timer. 33 tests still pass.
+
 ## [0.1.1] - 2026-06-27
 ### Changed
 - **Discord egress unified through Agent Center relay**: pushes now prefer schedule-reminder's

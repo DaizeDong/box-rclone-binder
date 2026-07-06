@@ -1,8 +1,8 @@
 # Roadmap
 
-Current: **v0.1.1**
+Current: **v0.1.2**
 
-## v0.1.1 (current)
+## v0.1.2 (current)
 - `box-binder` CLI: `deploy | refresh | healthcheck | status | verify-config | doctor`, all with
   `--json` and `--dry-run`, exit codes 0/1/2/3/4/5.
 - Four auth modes: `jwt` (default) / `ccg-native` / `ccg-mint` / `oauth-broker`.
