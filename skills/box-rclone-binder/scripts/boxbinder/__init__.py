@@ -9,7 +9,7 @@ __version__ = "0.1.0"
 
 AUTH_MODES = ("jwt", "ccg-native", "ccg-mint", "oauth-broker")
 
-# Exit codes — single source of truth (mirrors ARCHITECTURE §8).
+# Exit codes, single source of truth (mirrors ARCHITECTURE §8).
 EXIT_OK = 0
 EXIT_PARTIAL = 1
 EXIT_ALL_FAILED = 2

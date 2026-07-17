@@ -1,10 +1,10 @@
 # refresh, healthcheck, and alerts
 
-## healthcheck — read-only probe
+## healthcheck, read-only probe
 
 `rclone lsd box: --max-depth 1 --contimeout 15s --timeout 30s --low-level-retries 1 --retries 1`.
 
-- **Never** `rclone about box:` — the Box backend does not support it (always errors).
+- **Never** `rclone about box:`, the Box backend does not support it (always errors).
 - **Always** bounded by timeouts so a hung remote cannot stall the multi-host barrier.
 - It only LISTS; it never writes or deletes LIVE data.
 
@@ -24,7 +24,7 @@ on `auth_mode / root_folder_id / box_sub_type / remote_name / rclone_version`.
 `refresh_token_invariant()` enforces: server-auth modes -> **0** hosts hold a refresh_token;
 oauth-broker -> **exactly one** (the master). A violation is a structural alarm.
 
-## refresh — by auth_mode
+## refresh, by auth_mode
 
 - **jwt / ccg-native**: validation no-op. rclone auto-renews; refresh only re-probes that the
   credential is still authorized. Failure escalates; success is a quiet INFO.
@@ -41,7 +41,7 @@ for `invalid_grant`.
 Severity routing: transient-recovered = log only (no push); auth self-healed = INFO; self-heal
 failed / broken chain = CRITICAL + runbook; structure drift = WARN. **Every** message passes
 `alerts.scrub()` which redacts JWTs, `token=`/`secret=` assignments, PEM blocks, and long opaque
-blobs — a secret can never reach the relay. Stagger probes/alerts with `jitter_sec` to dodge 429.
+blobs, a secret can never reach the relay. Stagger probes/alerts with `jitter_sec` to dodge 429.
 
 ## Scheduling
 

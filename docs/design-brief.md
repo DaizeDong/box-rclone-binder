@@ -1,4 +1,4 @@
-# Design Brief — box-rclone-binder
+# Design Brief, box-rclone-binder
 
 > Produced by skill-smith Step 0 (research-first). The design rationale, auditable. Full architecture
 > lives in the planning repo's `ARCHITECTURE.md` (6-route cross-validated research, 2026-06-25).
@@ -9,7 +9,7 @@
 - Box developer docs: token lifetimes (access 60 min; refresh 60-day, single-use, rotating); server
   auth (JWT / CCG) with `box_subject_type`/`box_subject_id`.
 - rclone source `backend/box/box.go` + `lib/oauthutil` (JWT path, static-token non-renewal, absence
-  of CCG body handling) — the decisive evidence for defaulting to JWT.
+  of CCG body handling), the decisive evidence for defaulting to JWT.
 
 ## Frontier ideas to incorporate
 - Server auth as the *root fix* for multi-host (each host mints locally; no shared rotating secret).
@@ -23,7 +23,7 @@
   self-heal; synchronized probes (429). Full list: `reference/anti-patterns.md`.
 
 ## Proof bar (how we will show it is tested-real)
-- 10 signals (S1–S10) in `tests/test_signals.py`, aggregated by `tests/run_gate.py` to JSON. Green
+- 10 signals (S1 to S10) in `tests/test_signals.py`, aggregated by `tests/run_gate.py` to JSON. Green
   with no real Box credentials. v0.2 adds eval-lift (G1) + held-out trigger rate (G2).
 
 ## Scope & focus (one job, <=3 modules)
