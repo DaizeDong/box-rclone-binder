@@ -39,7 +39,7 @@ class Locked(RuntimeError):
 # ---- cross-platform single-instance lock (broker) ----------------------------------------
 
 # A broker refresh completes in seconds. A lock far older than this is from a crashed/hung
-# holder, not a live refresh — recover it instead of dead-locking every future refresh.
+# holder, not a live refresh, recover it instead of dead-locking every future refresh.
 _STALE_LOCK_SECONDS = 900
 
 

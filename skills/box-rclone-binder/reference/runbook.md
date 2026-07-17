@@ -1,6 +1,6 @@
-# Runbook — one-time setup + incident response
+# Runbook, one-time setup + incident response
 
-## One-time authorization (the deferred gap — user action, login/approval only)
+## One-time authorization (the deferred gap, user action, login/approval only)
 
 box-binder automates everything EXCEPT the initial Box authorization, which requires a human
 login / Admin approval. Do this once:

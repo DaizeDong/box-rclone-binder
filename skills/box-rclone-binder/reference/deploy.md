@@ -1,13 +1,13 @@
-# deploy — idempotent, atomic, multi-host
+# deploy, idempotent, atomic, multi-host
 
 ## What it converges
 
 Per host, `box-binder deploy` renders a **desired artifact set** (none contain secrets):
 
-- `/etc/box-binder/secrets.env` — the fileless rclone env-var remote (`RCLONE_CONFIG_BOX_*`).
+- `/etc/box-binder/secrets.env`, the fileless rclone env-var remote (`RCLONE_CONFIG_BOX_*`).
   Secret-bearing vars (CLIENT_SECRET, the JWT config.json path content) are NOT here; they come
   from a second `EnvironmentFile` injected from the secret backend at runtime.
-- `/etc/systemd/system/box-binder-health.{service,timer}` — oneshot probe + `OnCalendar=*:0/15`.
+- `/etc/systemd/system/box-binder-health.{service,timer}`, oneshot probe + `OnCalendar=*:0/15`.
 - ccg-mint only: `box-binder-mint.timer` (`*:0/45`, must be < 60 min).
 
 ## Idempotency contract
@@ -20,7 +20,7 @@ any host (no ssh, no writes) and is byte-deterministic (`artifact_fingerprint`).
 ## Atomic writes (local and remote)
 
 `atomic.atomic_write`: temp file in the SAME directory as the destination -> write -> fsync ->
-`os.replace` -> directory fsync. Cross-volume rename is refused (`CrossVolumeError`) — a
+`os.replace` -> directory fsync. Cross-volume rename is refused (`CrossVolumeError`), a
 cross-fs rename is non-atomic and can fail (rclone issue #6656). A crash before `os.replace`
 leaves the destination untouched and no `.bbtmp.*` leftover (signal S9). The remote SSH driver
 does the same: `mktemp` in the dest dir, content via **stdin** (never argv), `chmod 600`, `mv -f`,

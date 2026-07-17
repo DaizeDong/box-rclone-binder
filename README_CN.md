@@ -11,15 +11,15 @@
 
 ---
 
-## ⭐ 先读这里 — 设计理念
+## ⭐ 先读这里, 设计理念
 
 把一个 Box 账号用 rclone 绑到多台服务器，看似是部署问题，其实是**鉴权模型**问题。Box 的 OAuth
 `refresh_token` 是**单次使用 + 轮转**的：任一台刷新就作废其余各台的 token（`invalid_grant`）。
 一个结构上不可共享的凭证，再精巧的脚本也救不回来。
 
-所以本工具第一步是**直接消灭这个共享的轮转密钥**——改用 Box **服务端鉴权**（默认 JWT）：每台机持
+所以本工具第一步是**直接消灭这个共享的轮转密钥**,改用 Box **服务端鉴权**（默认 JWT）：每台机持
 同一份长期凭证、各自本地铸造短命 access token，天然多机一致、无可争抢。之后才在其上叠加幂等部署、
-只读健康检查、有界自愈与告警。所有行为都能在**无真实 Box 凭证**下用 mock 验证——因为「看起来配好了」
+只读健康检查、有界自愈与告警。所有行为都能在**无真实 Box 凭证**下用 mock 验证,因为「看起来配好了」
 不等于「真能用」。
 
 📜 **[完整设计理念 -> PHILOSOPHY.md](PHILOSOPHY.md)**
@@ -28,7 +28,7 @@
 
 ## 它是什么(不是什么)
 
-- **是**：一个聚焦的 CLI（`box-binder`），把一个 Box 网盘绑到多台服务器并无人值守地保活——幂等部署、
+- **是**：一个聚焦的 CLI（`box-binder`），把一个 Box 网盘绑到多台服务器并无人值守地保活,幂等部署、
   自动续期/自愈、多机一致性校验、cron/systemd 计划、Discord 告警。
 - **不是**：单机小助手（用原生 `rclone config` 即可）、通用 cron 模板器、通用云同步工具。一事一职，
   三模块（deploy / refresh / healthcheck）。
@@ -60,7 +60,7 @@ python tests/run_gate.py                                             # 完整 mo
 
 ## 配置
 
-`box-rclone-binder` 是**带 config 的 skill** —— 它读取一份按机群组织的清单（`machines.yaml`：主机、
+`box-rclone-binder` 是**带 config 的 skill**, 它读取一份按机群组织的清单（`machines.yaml`：主机、
 鉴权模式，以及指向密钥存放处的**指针**）。完整规范见
 [CONFIG.md](skills/box-rclone-binder/CONFIG.md)。
 
@@ -76,10 +76,10 @@ python tests/run_gate.py                                             # 完整 mo
   # 改 hosts，密钥保持 *_ref 指针，然后:
   python scripts/box_binder.py verify-config --json   # doctor: schema + 仅指针 + 禁内联密钥
   ```
-- **切换 config（即插即用）:** `machines.yaml` 自包含（仅指针、无硬编码路径）—— 把环境变量指向另一份
+- **切换 config（即插即用）:** `machines.yaml` 自包含（仅指针、无硬编码路径）, 把环境变量指向另一份
   即可，或用 `-c`:
   `export BOX_RCLONE_BINDER_CONFIG=~/configs/fleet-prod.yaml` ↔ `~/configs/fleet-staging.yaml`。
-- **密钥:** Mode B —— `machines.yaml`、`*.env`、`*.pem`、`*.key`、`rclone.conf` 全部 gitignore，永不
+- **密钥:** Mode B, `machines.yaml`、`*.env`、`*.pem`、`*.key`、`rclone.conf` 全部 gitignore，永不
   入库；清单里只放 `*_ref` 指针，真实值留在你的后端（`env`/`file`/`op`/`vault`/`aws-ssm`）。
   `verify-config` 对任何内联密钥硬失败。
 

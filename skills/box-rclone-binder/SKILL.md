@@ -14,7 +14,7 @@ description: Bind one Box drive across multiple servers via rclone with non-expi
 
 - **Use** when you must bind ONE Box account to TWO OR MORE servers via rclone and keep it alive
   unattended (auto-refresh, expiry self-heal, multi-host consistency).
-- **Single server only?** Plain `rclone config` is enough — you do not need this.
+- **Single server only?** Plain `rclone config` is enough, you do not need this.
 - **Not Box, or not rclone?** Out of scope.
 - **Generic cron/systemd templating?** Route elsewhere; this owns the Box+rclone seam specifically.
 
@@ -35,14 +35,14 @@ access tokens -> naturally multi-host consistent, no rotation to fight. Read
 
 ## Workflow (thin)
 
-1. `box-binder doctor -c machines.yaml` — probe rclone version / ssh / systemd.
-2. `box-binder verify-config` — schema + secret-pointer-only + NO inline secrets (hard-fails otherwise).
-3. `box-binder deploy [--dry-run]` — idempotently converge each host (atomic writes, systemd timer).
-4. `box-binder healthcheck` — read-only `rclone lsd` probe + cross-host consistency; classify + self-heal.
-5. `box-binder refresh` — jwt/ccg-native = validation no-op; ccg-mint = re-mint; oauth-broker = master refresh.
+1. `box-binder doctor -c machines.yaml`, probe rclone version / ssh / systemd.
+2. `box-binder verify-config`, schema + secret-pointer-only + NO inline secrets (hard-fails otherwise).
+3. `box-binder deploy [--dry-run]`, idempotently converge each host (atomic writes, systemd timer).
+4. `box-binder healthcheck`, read-only `rclone lsd` probe + cross-host consistency; classify + self-heal.
+5. `box-binder refresh`, jwt/ccg-native = validation no-op; ccg-mint = re-mint; oauth-broker = master refresh.
 
 All commands take `--json` (machine verdict) and `--dry-run`. Load the matching `reference/<shard>.md`
-for the step you are on — never all at once.
+for the step you are on, never all at once.
 
 | step | shard |
 |---|---|
@@ -58,7 +58,7 @@ for the step you are on — never all at once.
 2. **Secrets are referenced, never stored.** `machines.yaml` holds pointers (`*_ref`); values come
    from a secret backend at runtime. Inline secret values fail `verify-config`. `*.env`/`config.json`/
    `*.pem`/`*.conf` are gitignored. Never `-vv` / `rclone config dump` to a log (leaks tokens).
-3. **Health check is read-only.** `rclone lsd` with timeouts — never `rclone about` (Box unsupported),
+3. **Health check is read-only.** `rclone lsd` with timeouts, never `rclone about` (Box unsupported),
    never write/delete LIVE data.
 4. **Idempotent + atomic.** Converge by sha256 diff; write temp on the SAME volume -> fsync -> rename.
 5. **Self-heal is bounded.** Retry only transient (429/network); `invalid_grant` is a broken chain ->
