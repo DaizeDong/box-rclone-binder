@@ -92,7 +92,7 @@ rejected.** Example: `client_id_ref: BOX_BINDER_CLIENT_ID` (the value lives in `
 | Field | Type | Default | Example / allowed |
 |---|---|---|---|
 | `discord` | bool | `false` | `true` |
-| `relay` | path |, | `the notifier` |
+| `relay` | path |, | `~/.local/notifier.py` (or set `BOX_RCLONE_BINDER_RELAY`) |
 | `on_recovered` | level |, | `INFO` |
 | `on_heal_failed` | level |, | `CRITICAL` |
 | `on_drift` | level |, | `WARN` |

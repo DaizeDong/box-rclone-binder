@@ -36,7 +36,7 @@ oauth-broker -> **exactly one** (the master). A violation is a structural alarm.
 Retry policy: exponential backoff + jitter for 429/5xx/network (honor `Retry-After`); zero retries
 for `invalid_grant`.
 
-## Alerts (Discord, via `the notifier`)
+## Alerts (Discord, via the configured notifier -- see `alerts.relay` / `BOX_RCLONE_BINDER_NOTIFIER`)
 
 Severity routing: transient-recovered = log only (no push); auth self-healed = INFO; self-heal
 failed / broken chain = CRITICAL + runbook; structure drift = WARN. **Every** message passes
