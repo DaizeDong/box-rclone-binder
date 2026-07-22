@@ -31,7 +31,7 @@ hosts:
 
 alerts:
   discord: true
-  relay: "the notifier"
+  relay: "~/.local/notifier.py"   # or leave unset and export BOX_RCLONE_BINDER_NOTIFIER
   on_recovered: INFO          # auth failed then self-healed
   on_heal_failed: CRITICAL    # self-heal failed; human needed
   on_drift: WARN              # cross-host structure drift

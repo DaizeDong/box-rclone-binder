@@ -47,18 +47,20 @@ def send(event: str, message: str, relay: str = None, enabled: bool = True) -> d
     if not enabled or sev is None or not SEVERITY_PUSH.get(sev, False):
         return result
     payload = "[box-binder %s] %s" % (sev, safe)
-    # Pluggable Agent Center egress: explicit relay arg wins (tests/override); else prefer
-    # schedule-reminder's unified relay (#infra stream) when the base is installed; else fall back
-    # to the Big Brother relay (send.py) so this works standalone.
+    # Pluggable notifier egress: explicit relay arg wins (tests/override); else prefer a
+    # unified relay (an "infra" stream) when one is configured via BOX_RCLONE_BINDER_RELAY;
+    # else fall back to a simple notifier script (BOX_RCLONE_BINDER_NOTIFIER) so this works
+    # standalone. Both env vars point at whatever egress you wire up; the defaults are generic.
     if relay:
         argv = ["python", relay, payload]
     else:
-        rp = os.environ.get("SCHEDULE_RELAY_PY") or os.path.expanduser(
-            "the relay")
+        rp = os.path.expanduser(
+            os.environ.get("BOX_RCLONE_BINDER_RELAY", "~/.local/box-rclone-binder/relay.py"))
         if os.path.isfile(rp):
             argv = ["python", rp, "send", "--stream", "infra", "--text", payload]
         else:
-            argv = ["python", os.path.expanduser("the notifier"), payload]
+            argv = ["python", os.path.expanduser(
+                os.environ.get("BOX_RCLONE_BINDER_NOTIFIER", "~/.local/notifier.py")), payload]
     try:
         subprocess.run(argv, timeout=20,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
