@@ -8,6 +8,7 @@ import http.server
 import json
 import os
 import sys
+import tempfile
 import threading
 import unittest
 
@@ -434,6 +435,142 @@ class S10CLI(unittest.TestCase):
         msg = alertsmod.scrub("heal_failed for host h1: %s end" % leak)
         self.assertNotIn(leak, msg)
         self.assertIn("[REDACTED]", msg)
+
+
+# ---- alert delivery honesty ----------------------------------------------------------------
+# A push may be reported as delivered ONLY when the egress child exits 0. The regression these
+# tests pin: the explicit-relay branch used to build a bare-positional argv that the real relay's
+# argparse rejects with exit 2, and every branch then set pushed=True regardless of return code,
+# so a rejected alert was reported to the operator as a successful push.
+
+_STUB_RELAY = '''\
+import argparse, json, sys
+ap = argparse.ArgumentParser(prog="relay.py")
+sub = ap.add_subparsers(dest="cmd", required=True)
+p = sub.add_parser("send")
+p.add_argument("--stream", required=True)
+p.add_argument("--text", required=True)
+p.add_argument("--username", default=None)
+a = ap.parse_args()
+open(RECORD, "w", encoding="utf-8").write(json.dumps({"stream": a.stream, "text": a.text}))
+sys.exit(EXIT)
+'''
+
+_STUB_NOTIFIER = '''\
+import json, sys
+open(RECORD, "w", encoding="utf-8").write(json.dumps({"argv": sys.argv[1:]}))
+sys.stderr.write("stub notifier stderr\\n")
+sys.exit(EXIT)
+'''
+
+
+class AlertDeliveryHonesty(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self._saved = {k: os.environ.get(k) for k in
+                       ("BOX_RCLONE_BINDER_RELAY", "BOX_RCLONE_BINDER_NOTIFIER")}
+        for k in self._saved:
+            os.environ.pop(k, None)
+
+    def tearDown(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def _stub(self, name, body, exit_code=0):
+        record = os.path.join(self.tmp, name + ".json")
+        path = os.path.join(self.tmp, name + ".py")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("RECORD = %r\nEXIT = %d\n" % (record, exit_code) + body)
+        return path, record
+
+    def _read(self, record):
+        with open(record, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_explicit_relay_uses_the_subcommand_convention(self):
+        # The relay's argparse rejects a bare positional; the stub mirrors that grammar, so this
+        # test fails loudly if the old [python, relay, payload] argv ever comes back.
+        relay, record = self._stub("relay_ok", _STUB_RELAY)
+        r = alertsmod.send("drift", "structure drift on h1", relay=relay)
+        self.assertTrue(r["pushed"], r["reason"])
+        self.assertEqual(r["reason"], "")
+        got = self._read(record)
+        self.assertEqual(got["stream"], alertsmod.STREAM)      # infra, never the mail default
+        self.assertIn("structure drift on h1", got["text"])
+
+    def test_explicit_relay_nonzero_exit_is_not_a_push(self):
+        relay, _ = self._stub("relay_reject", _STUB_RELAY, exit_code=2)
+        r = alertsmod.send("drift", "probe", relay=relay)
+        self.assertFalse(r["pushed"])
+        self.assertIn("exited 2", r["reason"])
+
+    def test_missing_relay_is_not_a_push(self):
+        r = alertsmod.send("drift", "probe", relay=os.path.join(self.tmp, "absent.py"))
+        self.assertFalse(r["pushed"])
+        self.assertIn("not found", r["reason"])
+
+    def test_explicit_relay_expands_tilde(self):
+        # A config file writes "~/...", an unexpanded tilde is just a missing file.
+        r = alertsmod.send("drift", "probe", relay="~/definitely-absent-relay.py")
+        self.assertFalse(r["pushed"])
+        self.assertNotIn("~", r["reason"])
+
+    def test_env_relay_branch(self):
+        relay, record = self._stub("relay_env", _STUB_RELAY)
+        os.environ["BOX_RCLONE_BINDER_RELAY"] = relay
+        r = alertsmod.send("heal_failed", "probe")
+        self.assertTrue(r["pushed"], r["reason"])
+        self.assertEqual(r["egress"], "relay")
+        self.assertEqual(self._read(record)["stream"], alertsmod.STREAM)
+
+    def test_notifier_fallback_argv_and_return_code(self):
+        notifier, record = self._stub("notifier_ok", _STUB_NOTIFIER)
+        os.environ["BOX_RCLONE_BINDER_RELAY"] = os.path.join(self.tmp, "no-relay-here.py")
+        os.environ["BOX_RCLONE_BINDER_NOTIFIER"] = notifier
+        r = alertsmod.send("recovered", "healed h1")
+        self.assertTrue(r["pushed"], r["reason"])
+        self.assertEqual(r["egress"], "notifier")
+        argv = self._read(record)["argv"]
+        self.assertIn("healed h1", argv[0])                    # message stays argv[1] of the child
+        self.assertEqual(argv[1:], ["--stream", alertsmod.STREAM])
+
+    def test_notifier_fallback_nonzero_exit_is_not_a_push(self):
+        notifier, _ = self._stub("notifier_fail", _STUB_NOTIFIER, exit_code=7)
+        os.environ["BOX_RCLONE_BINDER_RELAY"] = os.path.join(self.tmp, "no-relay-here.py")
+        os.environ["BOX_RCLONE_BINDER_NOTIFIER"] = notifier
+        r = alertsmod.send("recovered", "probe")
+        self.assertFalse(r["pushed"])
+        self.assertIn("exited 7", r["reason"])
+
+    def test_missing_notifier_is_not_a_push(self):
+        os.environ["BOX_RCLONE_BINDER_RELAY"] = os.path.join(self.tmp, "no-relay-here.py")
+        os.environ["BOX_RCLONE_BINDER_NOTIFIER"] = os.path.join(self.tmp, "no-notifier-here.py")
+        r = alertsmod.send("recovered", "probe")
+        self.assertFalse(r["pushed"])
+        self.assertIn("not found", r["reason"])
+
+    def test_policy_skips_carry_a_reason_never_a_silent_true(self):
+        relay, _ = self._stub("relay_policy", _STUB_RELAY)
+        jitter = alertsmod.send("jitter", "transient", relay=relay)
+        self.assertFalse(jitter["pushed"])
+        self.assertIn("log-only", jitter["reason"])
+        off = alertsmod.send("drift", "probe", relay=relay, enabled=False)
+        self.assertFalse(off["pushed"])
+        self.assertIn("disabled", off["reason"])
+
+    def test_reason_is_scrubbed(self):
+        # The child's stderr is echoed into `reason`; it must pass through scrub() like any
+        # other outbound text, or a leaky egress turns the result dict into the leak.
+        leaky = os.path.join(self.tmp, "leaky.py")
+        with open(leaky, "w", encoding="utf-8") as fh:
+            fh.write("import sys\nsys.stderr.write('failed: token=AT-supersecretvalue\\n')\n"
+                     "sys.exit(3)\n")
+        r = alertsmod.send("drift", "probe", relay=leaky)
+        self.assertFalse(r["pushed"])
+        self.assertNotIn("AT-supersecretvalue", r["reason"])
 
 
 if __name__ == "__main__":

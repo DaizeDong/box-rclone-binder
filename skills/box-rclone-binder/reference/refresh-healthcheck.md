@@ -36,12 +36,17 @@ oauth-broker -> **exactly one** (the master). A violation is a structural alarm.
 Retry policy: exponential backoff + jitter for 429/5xx/network (honor `Retry-After`); zero retries
 for `invalid_grant`.
 
-## Alerts (Discord, via the configured notifier -- see `alerts.relay` / `BOX_RCLONE_BINDER_NOTIFIER`)
+## Alerts (Discord, via the configured egress, see `alerts.relay` / `BOX_RCLONE_BINDER_RELAY`)
 
 Severity routing: transient-recovered = log only (no push); auth self-healed = INFO; self-heal
 failed / broken chain = CRITICAL + runbook; structure drift = WARN. **Every** message passes
 `alerts.scrub()` which redacts JWTs, `token=`/`secret=` assignments, PEM blocks, and long opaque
 blobs, a secret can never reach the relay. Stagger probes/alerts with `jitter_sec` to dodge 429.
+
+Alerts go to the `infra` stream, invoked as `send --stream infra --text <msg>`; see CONFIG.md for
+the full egress resolution order. `alerts.send` reports `pushed: true` **only** when the egress
+process exits 0, otherwise `pushed: false` with a `reason`. Non-delivery is never silent, which
+matters because an operator who trusts a false "pushed" stops watching the channel.
 
 ## Scheduling
 
