@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 
 _REDACTORS = [
     re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]+)?"),  # JWT
@@ -48,19 +49,29 @@ def send(event: str, message: str, relay: str = None, enabled: bool = True) -> d
         return result
     payload = "[box-binder %s] %s" % (sev, safe)
     # Pluggable notifier egress: explicit relay arg wins (tests/override); else prefer a
-    # unified relay (an "infra" stream) when one is configured via BOX_RCLONE_BINDER_RELAY;
+    # unified relay (the "infra" stream) when one is configured via BOX_RCLONE_BINDER_RELAY;
     # else fall back to a simple notifier script (BOX_RCLONE_BINDER_NOTIFIER) so this works
     # standalone. Both env vars point at whatever egress you wire up; the defaults are generic.
+    #
+    # sys.executable, never the literal "python": under the Windows Task Scheduler, PATH resolves
+    # only to the WindowsApps stub, so a bare "python" hangs or dies with no output.
+    #
+    # The relay default used to be ~/.local/box-rclone-binder/relay.py, a path that exists on no
+    # machine, so every alert silently took the notifier branch below, whose stream defaults to
+    # "mail": infra alerts landed in the mail channel. Hence "--stream infra" on BOTH branches.
+    # On the notifier branch the flag trails the payload on purpose, so a minimal third-party
+    # notifier that only reads argv[1] still gets the message and merely ignores the extra pair.
     if relay:
-        argv = ["python", relay, payload]
+        argv = [sys.executable, relay, payload]
     else:
         rp = os.path.expanduser(
-            os.environ.get("BOX_RCLONE_BINDER_RELAY", "~/.local/box-rclone-binder/relay.py"))
+            os.environ.get("BOX_RCLONE_BINDER_RELAY", "~/.local/relay.py"))
         if os.path.isfile(rp):
-            argv = ["python", rp, "send", "--stream", "infra", "--text", payload]
+            argv = [sys.executable, rp, "send", "--stream", "infra", "--text", payload]
         else:
-            argv = ["python", os.path.expanduser(
-                os.environ.get("BOX_RCLONE_BINDER_NOTIFIER", "~/.local/notifier.py")), payload]
+            argv = [sys.executable, os.path.expanduser(
+                os.environ.get("BOX_RCLONE_BINDER_NOTIFIER", "~/.local/notifier.py")),
+                payload, "--stream", "infra"]
     try:
         subprocess.run(argv, timeout=20,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
