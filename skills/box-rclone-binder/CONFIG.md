@@ -57,9 +57,9 @@ schema the loader should expect. The loader accepts `schema_version` as an alias
 | `box_sub_type` | enum | no | `enterprise` | `enterprise` \| `user` |
 | `remote_name` | str | **yes** (here or per host) | `box` | `box` |
 | `root_folder_id` | str | no | `"0"` | `"0"` (service-account root) |
-| `rclone_min_version` | str | no |, | `"1.71.0"` |
+| `rclone_min_version` | str | no | none | `"1.71.0"` |
 | `config_dir` | str (remote path) | no | `/etc/box-binder` | `/etc/box-binder` |
-| `health_interval` | str (systemd OnCalendar) | no |, | `"*:0/15"` (every 15 min) |
+| `health_interval` | str (systemd OnCalendar) | no | none | `"*:0/15"` (every 15 min) |
 | `mint_interval_min` | int | no (ccg-mint only) | `45` | `45` (re-mint before 60-min expiry) |
 | `impersonate_user_id` | str | no | `""` | `"1234567"` (as-user) |
 
@@ -92,11 +92,22 @@ rejected.** Example: `client_id_ref: BOX_BINDER_CLIENT_ID` (the value lives in `
 | Field | Type | Default | Example / allowed |
 |---|---|---|---|
 | `discord` | bool | `false` | `true` |
-| `relay` | path |, | `~/.local/relay.py`, `send --stream infra` (or set `BOX_RCLONE_BINDER_RELAY`); falls back to `~/.local/notifier.py` |
-| `on_recovered` | level |, | `INFO` |
-| `on_heal_failed` | level |, | `CRITICAL` |
-| `on_drift` | level |, | `WARN` |
-| `jitter_sec` | int |, | `30` (stagger probes to dodge 429) |
+| `relay` | path | none | `~/.local/relay.py`, a relay that takes `send --stream infra --text <msg>` (or set `BOX_RCLONE_BINDER_RELAY`) |
+| `on_recovered` | level | none | `INFO` |
+| `on_heal_failed` | level | none | `CRITICAL` |
+| `on_drift` | level | none | `WARN` |
+| `jitter_sec` | int | none | `30` (stagger probes to dodge 429) |
+
+**Egress resolution (`alerts.send`), in order:** the `relay` key above (a `~` in it is expanded),
+then `$BOX_RCLONE_BINDER_RELAY` (default `~/.local/relay.py`) if that file exists, then a minimal
+notifier at `$BOX_RCLONE_BINDER_NOTIFIER` (default `~/.local/notifier.py`). A relay is invoked as
+`send --stream infra --text <message>`; a notifier gets the message as its first argument with
+`--stream infra` trailing. Either way the stream is always `infra`, never the `mail` default.
+
+**A push is reported as delivered only when the egress process exits 0.** A missing egress script,
+a nonzero exit, or a timeout yields `pushed: false` plus a `reason`, so non-delivery is never
+reported as success. Policy skips carry a `reason` too: a log-only severity such as `jitter`, or
+`alerts.send(..., enabled=False)` for a caller that has turned alerting off.
 
 **Validation (`box-binder verify-config`):** `hosts` non-empty; each host has `host` and a resolved
 `remote_name`; `auth_mode` in the enum; `secrets.source` in the enum; every `*_ref` is a pointer
@@ -130,8 +141,8 @@ python scripts/box_binder.py doctor        --json   # per-host rclone/ssh/system
 
 ## Switching between configs (hot-swap), E5
 
-`machines.yaml` is self-contained, pointer-only secrets, no machine-local absolute-path coupling ,
-so a config is swappable with no other change. Switch by repointing the env var, or pass `-c`:
+`machines.yaml` is self-contained: pointer-only secrets, and no machine-local absolute-path
+coupling, so a config is swappable with no other change. Switch by repointing the env var, or pass `-c`:
 
 ```bash
 export BOX_RCLONE_BINDER_CONFIG=~/configs/fleet-prod.yaml     # config A

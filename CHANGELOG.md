@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here (Keep a Changelog style).
 
+## [Unreleased]
+### Fixed
+- **Alerts reported non-delivery as a successful push.** The explicit `alerts.relay` branch built
+  the old positional argv `[python, relay, message]`, which a relay's argparse rejects with exit 2,
+  and *every* branch then set `pushed=True` without looking at the child's return code. Following
+  the documented `~/.local/relay.py` setup therefore produced a rejected alert reported as pushed.
+  Now: the explicit branch uses the relay grammar `send --stream infra --text <msg>` (same as the
+  env branch), `~` is expanded in the configured path, a missing egress script is detected before
+  spawning, and `pushed` is True only on exit 0. Every non-push, including policy skips, carries a
+  scrubbed `reason`. Ten regression tests pin this (`AlertDeliveryHonesty`), 43 tests pass.
+- `config/machines.example.yaml` pointed `alerts.relay` at a notifier path, which the relay grammar
+  would reject; it now points at a relay. CONFIG.md documents the resolution order and the exit-0
+  rule, and its alerts/defaults tables no longer show the stray commas left by a de-dash pass.
+
 ## [0.1.2] - 2026-07-06
 ### Fixed
 - **SKILL.md over-claim removed:** the `doctor` workflow step said it probes "CCG capability", but
