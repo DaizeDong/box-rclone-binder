@@ -15,9 +15,11 @@
     "",
     "Enforced by tools/data_boundary.py in .githooks and in CI."
   ],
-  "_audited": "2026-07-13 -- swept for real-run output written back into this repo (every open(...,'a'), json.dump, write_text; every tracked *.jsonl / state / cache / report). This skill's writers all resolve OUTSIDE the repo, or it has no writers. No DATA-class path found. An empty list here is a CONCLUSION, not a default: it distinguishes 'audited, nothing to declare' from 'nobody has looked'.",
+  "_audited": "2026-07-31 RE-AUDIT (supersedes the 2026-07-13 sweep, which recorded an empty declaration for this repo). The earlier sweep asked only whether shipped code appends to a TRACKED file here. That question is too narrow: it clears every path that is gitignored, and .gitignore is advisory -- `git add -f` walks straight through it, which is the whole reason declarations exist. This pass asked instead whether shipped code or shipped docs can put REAL-RUN OUTPUT at a repo-relative path at all. ANSWER: YES for real config, and the landing site is repo-relative BY DESIGN. discover_config_path() step 4 is ./machines.yaml, cwd-relative, documented as the historical default, and it is returned as the last resort even when absent -- so running any command from this repo makes the repo root the file the tool asks for, and the path an init would fill. machines.yaml carries real machine names, real Box remote paths and secret references. The runtime STATE (broker token blob, per-slave bind state) resolves from paths inside machines.yaml and lands outside the repo. Declared data_sealed, not data: the schema already ships at skills/box-rclone-binder/config/machines.example.yaml, and a second copy at the root would be a duplicate that drifts, which is worse than none.",
   "data": [],
-  "data_sealed": [],
+  "data_sealed": [
+    "machines.yaml"
+  ],
   "fixture": [],
   "_data_home": "~/.box-rclone-binder-config/data/   (override with $BOX_RCLONE_BINDER_DATA_DIR). If this skill ever needs to record real-run output, it goes THERE -- never back into this repo."
 }
