@@ -57,15 +57,48 @@ def discover_config_path(explicit=None):
     d = os.environ.get(CONFIG_ENV_DIR)
     if d:
         return os.path.join(os.path.abspath(os.path.expanduser(d)), CONFIG_BASENAME)
+    # THE SIBLING COMPANION, ahead of the cwd probe and ahead of the dotfiles.
+    #
+    # `./machines.yaml` was step 4 AND the named last resort, so running any command from this
+    # repository made the answer <repo>/machines.yaml. That file holds real hostnames, Box remote
+    # paths and secret references, and .dataclass.json already declares it `data_sealed` because it
+    # was there once. The last-resort behaviour is the worse half: with nothing found, the error
+    # named an in-repo path, so an operator following the message literally recreated the sealed
+    # file inside the public work tree.
+    companion = _companion_config_path()
     candidates = [
-        os.path.abspath(CONFIG_BASENAME),
-        os.path.expanduser(os.path.join("~", ".box-rclone-binder-config", CONFIG_BASENAME)),
-        os.path.expanduser(os.path.join("~", ".config", "box-rclone-binder", CONFIG_BASENAME)),
+        c for c in (
+            companion,
+            os.path.abspath(CONFIG_BASENAME),
+            os.path.expanduser(os.path.join("~", ".box-rclone-binder-config", CONFIG_BASENAME)),
+            os.path.expanduser(os.path.join("~", ".config", "box-rclone-binder", CONFIG_BASENAME)),
+        ) if c
     ]
     for c in candidates:
         if os.path.isfile(c):
             return c
-    return candidates[0]  # cwd ./machines.yaml as the named last resort
+    # The named last resort is the COMPANION when one resolves, so the "not found" message points
+    # at where the file belongs rather than at the one place it must never be created.
+    return companion or candidates[0]
+
+
+def _companion_config_path():
+    """<companion>/machines.yaml via tools/datadir.py, or None when no companion resolves."""
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    p = os.path.join(repo, "tools", "datadir.py")
+    if not os.path.isfile(p):
+        return None
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_dd_for_box", p)
+    if spec is None or spec.loader is None:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    fn = getattr(mod, "resolve_companion_root", None)
+    if fn is None:
+        return None
+    root = fn("box-rclone-binder")
+    return os.path.join(str(root), CONFIG_BASENAME) if root else None
 
 
 def _now():
