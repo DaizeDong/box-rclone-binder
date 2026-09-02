@@ -1,4 +1,4 @@
 [submodule "guards"]
 	path = guards
-	url = git@daizedong:DaizeDong/fleet-guards.git
+	url = https://github.com/DaizeDong/fleet-guards.git
 	branch = main
