@@ -83,11 +83,25 @@ def discover_config_path(explicit=None):
 
 
 def _companion_config_path():
-    """<companion>/machines.yaml via tools/datadir.py, or None when no companion resolves."""
+    """<companion>/machines.yaml via the guards submodule's datadir.py, or None when no companion
+    resolves.
+
+    The resolver moved out of tools/ and into guards/ so there is one copy of it in the fleet
+    rather than one per repo. The two had already begun to diverge.
+
+    A MISSING resolver raises instead of returning None. Those two states used to be the same
+    answer here, and they mean opposite things: None is "this machine has no companion configured
+    yet", a normal uninitialized state, while a missing file means the submodule was never checked
+    out and NOTHING was consulted. Reporting the second as the first is how an unchecked-out guard
+    kit looks exactly like a clean install.
+    """
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    p = os.path.join(repo, "tools", "datadir.py")
+    p = os.path.join(repo, "guards", "tools", "datadir.py")
     if not os.path.isfile(p):
-        return None
+        raise RuntimeError(
+            "guards/tools/datadir.py is missing, so the companion resolver never ran. "
+            "The guards submodule is not checked out: run `git submodule update --init`. "
+            "This is not the same as having no companion configured, and must not be read as one.")
     import importlib.util
     spec = importlib.util.spec_from_file_location("_dd_for_box", p)
     if spec is None or spec.loader is None:
