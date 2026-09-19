@@ -384,14 +384,14 @@ class S9Atomic(unittest.TestCase):
         self.assertEqual(open(p).read(), "hello")
 
     def test_cross_volume_rejected(self):
-        orig = atomicmod._same_volume
-        atomicmod._same_volume = lambda a, b: False
+        orig = atomicmod.filesystem._same_volume
+        atomicmod.filesystem._same_volume = lambda a, b: False
         try:
             with self.assertRaises(atomicmod.CrossVolumeError):
                 atomicmod.assert_same_volume(os.path.join(self.tmp, "t"),
                                              os.path.join(self.tmp, "d"))
         finally:
-            atomicmod._same_volume = orig
+            atomicmod.filesystem._same_volume = orig
 
     def test_no_half_file_on_failed_replace(self):
         p = os.path.join(self.tmp, "d.txt")
@@ -404,8 +404,7 @@ class S9Atomic(unittest.TestCase):
         finally:
             os.replace = orig
         self.assertEqual(open(p).read(), "OLD")     # destination untouched
-        leftovers = [f for f in os.listdir(self.tmp) if f.startswith(".bbtmp.")]
-        self.assertEqual(leftovers, [])             # no half-written temp left behind
+        self.assertEqual(os.listdir(self.tmp), ["d.txt"])  # no half-written temp left behind
 
 
 # ---- S10 CLI contract ---------------------------------------------------------------------
