@@ -61,6 +61,7 @@ schema the loader should expect. The loader accepts `schema_version` as an alias
 | `config_dir` | str (remote path) | no | `/etc/box-binder` | `/etc/box-binder` |
 | `health_interval` | str (systemd OnCalendar) | no | none | `"*:0/15"` (every 15 min) |
 | `mint_interval_min` | int | no (ccg-mint only) | `45` | `45` (re-mint before 60-min expiry) |
+| `broker_role` | enum | for oauth-broker | `slave` | exactly one host must be `master` |
 | `impersonate_user_id` | str | no | `""` | `"1234567"` (as-user) |
 
 ### `secrets` (mapping, WHERE secrets live, never the value)
@@ -73,6 +74,13 @@ schema the loader should expect. The loader accepts `schema_version` as an alias
 | `client_secret_ref` | pointer | for `ccg-*` | pointer |
 | `box_subject_id_ref` | pointer | for `ccg-*` | pointer |
 | `rclone_config_pass_ref` | pointer | only for encrypted-conf fallback | pointer |
+| `broker_state_ref` | pointer | first deployment of broker master | JSON containing the initial refresh token |
+
+Execution resolves `env` and `file` sources. Export `op`, `vault`, or `aws-ssm` secrets to one
+of these sources first; unsupported sources fail before deployment. A per-host `secrets`
+mapping may override the fleet references. Slaves receive no client credentials or refresh token.
+The master persists rotated state and deployment never replaces that state with an old seed.
+Its scheduled distributor requires noninteractive SSH access to the configured slaves.
 
 **Pointer shape (enforced):** an env var name (`UPPER_SNAKE`), `op://…`, `vault://…`,
 `aws-ssm://…`, an absolute path (`/…`), a `<placeholder>`, or empty. **A literal secret is

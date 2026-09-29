@@ -20,6 +20,6 @@
   "data_sealed": [
     "machines.yaml"
   ],
-  "fixture": [],
+  "fixture": ["skills/box-rclone-binder/tests/fixtures/inventories.json"],
   "_data_home": "~/.box-rclone-binder-config/data/   (override with $BOX_RCLONE_BINDER_DATA_DIR). If this skill ever needs to record real-run output, it goes THERE -- never back into this repo."
 }

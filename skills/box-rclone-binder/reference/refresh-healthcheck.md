@@ -1,55 +1,41 @@
-# refresh, healthcheck, and alerts
+# Refresh and health checks
 
-## healthcheck, read-only probe
+`plan-refresh` and `refresh --dry-run` return `status: planned`, `executed: false` and per-host
+actions. They contact no hosts. `refresh` invokes the deployed runtime and requires a receipt
+matching the current operation identifier, action and auth mode. Stale or malformed success
+output fails. The batch distinguishes completed, partial and failed outcomes.
 
-`rclone lsd box: --max-depth 1 --contimeout 15s --timeout 30s --low-level-retries 1 --retries 1`.
+## Auth dispatch
 
-- **Never** `rclone about box:`, the Box backend does not support it (always errors).
-- **Always** bounded by timeouts so a hung remote cannot stall the multi-host barrier.
-- It only LISTS; it never writes or deletes LIVE data.
+- JWT and native CCG validate with bounded `rclone lsd`; rclone performs native renewal.
+- CCG mint requests a fresh access token, validates the response, persists access-only JSON,
+  then validates access. Its systemd mint service runs on the configured interval below 60 minutes.
+- OAuth broker requires one master. An OS lock serializes refresh, the new rotating token is
+  persisted first, then access-only JSON is copied to slaves through protected SSH input.
+  Each slave's token file is read back and its access is validated. The master's broker timer
+  runs the same refresh/distribution sequence using its installed peer inventory.
 
-stderr is classified (signal S7) and routed:
+Use `refresh --host node2.example.com` to retry a failed host. A slave-only broker retry reads
+the master's still-valid access token without rotating again. An unavailable or expired source
+blocks distribution. Missing rotated-token responses and `invalid_grant` require attention;
+there is no blind retry within the command. Reauthorization remains a human operation.
 
-| pattern | category | action |
-|---|---|---|
-| `Invalid refresh token` / `401` / `Unauthorized` / `token expired` / `invalid_grant` | auth | self-heal |
-| `429` / `rate limit` / `Retry-After` | ratelimit | back off + retry |
-| `timeout` / `connection refused` / `dial tcp` / `i/o timeout` | network | back off + retry |
-| anything else with rc != 0 | unknown | fail (surface, do not guess) |
+## Secret transport
 
-## Multi-host consistency
+Credential values are never included in operation receipts or command arguments. Runtime
+token requests use HTTP request bodies. The standalone `mint.sh` URL-encodes form fields into
+a mode-0600 temporary file and supplies them through curl stdin. It validates and normalizes
+the response before replacing the access file, and removes temporary files on failure.
+Rclone receives the JSON token through its environment, loaded from the protected file.
 
-Each host probes **independently** (no shared token, no shared conf). `consistency()` flags drift
-on `auth_mode / root_folder_id / box_sub_type / remote_name / rclone_version`.
-`refresh_token_invariant()` enforces: server-auth modes -> **0** hosts hold a refresh_token;
-oauth-broker -> **exactly one** (the master). A violation is a structural alarm.
+## Health and scheduling boundaries
 
-## refresh, by auth_mode
+The CLI and health timer invoke the installed runtime, which constructs the same credential
+environment as refresh. Its `rclone lsd` is read-only and bounded; command output is captured
+and excluded from reports. A failed validation is a failure, even if an earlier receipt succeeded.
 
-- **jwt / ccg-native**: validation no-op. rclone auto-renews; refresh only re-probes that the
-  credential is still authorized. Failure escalates; success is a quiet INFO.
-- **ccg-mint**: re-mint via `mint.sh` (correct CCG body, @file injection), then re-probe.
-- **oauth-broker**: `flock` single-master refresh. Order is load-bearing: **persist the new
-  refresh_token first**, then render access-only slave blobs. `invalid_grant` = broken chain ->
-  NonRetryable -> CRITICAL (manual re-auth), never blind-retry, never delete+recreate the remote.
-
-Retry policy: exponential backoff + jitter for 429/5xx/network (honor `Retry-After`); zero retries
-for `invalid_grant`.
-
-## Alerts (Discord, via the configured egress, see `alerts.relay` / `BOX_RCLONE_BINDER_RELAY`)
-
-Severity routing: transient-recovered = log only (no push); auth self-healed = INFO; self-heal
-failed / broken chain = CRITICAL + runbook; structure drift = WARN. **Every** message passes
-`alerts.scrub()` which redacts JWTs, `token=`/`secret=` assignments, PEM blocks, and long opaque
-blobs, a secret can never reach the relay. Stagger probes/alerts with `jitter_sec` to dodge 429.
-
-Alerts go to the `infra` stream, invoked as `send --stream infra --text <msg>`; see CONFIG.md for
-the full egress resolution order. `alerts.send` reports `pushed: true` **only** when the egress
-process exits 0, otherwise `pushed: false` with a `reason`. Non-delivery is never silent, which
-matters because an operator who trusts a false "pushed" stops watching the channel.
-
-## Scheduling
-
-systemd timer (`OnCalendar=*:0/15`, `Persistent=true`) preferred; cron fallback uses a marker
-block (`# >>> box-binder >>> ... <<<`) replaced whole, never appended. Optionally layer a
-healthchecks.io dead-man ping to catch "the job itself never ran".
+The shipped automation targets Linux/systemd. Cron installation, automatic alert dispatch,
+in-command backoff and native CCG compatibility across token expiry are not implemented or
+established by this repair. The separate alert/classification helpers remain available, but
+their presence does not prove automatic recovery or delivery. Real authorization, timer firing,
+restart persistence and token-expiry behavior require controlled live acceptance.

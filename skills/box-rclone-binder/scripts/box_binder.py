@@ -23,6 +23,7 @@ from boxbinder import config as cfgmod
 from boxbinder import deploy as deploymod
 from boxbinder import health as healthmod
 from boxbinder import refresh as refreshmod
+from boxbinder import remote as remotemod
 from boxbinder.drivers import SSHHostDriver
 
 
@@ -123,6 +124,8 @@ def _select_hosts(cfg, only):
     if not only:
         return cfg.hosts
     want = set(only)
+    if want - {h.get('host') for h in cfg.hosts}:
+        raise cfgmod.ConfigError('requested host is not present in the inventory')
     return [h for h in cfg.hosts if h.get("host") in want]
 
 
@@ -167,20 +170,33 @@ def cmd_deploy(cfg, args, factory=_default_factory, **_):
     hosts = _select_hosts(cfg, args.host)
     results, n_fail = [], 0
     for h in hosts:
+        if cfg.auth_mode(h) == 'oauth-broker' and h.get('broker_role') == 'master':
+            h = dict(h, broker_peers=[dict(remotemod.host_settings(peer),
+                        **{key: peer[key] for key in ('ssh', 'ssh_opts') if key in peer})
+                        for peer in cfg.hosts if cfg.auth_mode(peer) == 'oauth-broker'
+                        and peer.get('broker_role') != 'master'])
         if args.dry_run:
             results.append(deploymod.deploy_host(None, h, dry_run=True))
             continue
+        d = None
+        initial_mutations = 0
+        initial_plan = 0
         try:
             d = factory(h, dry_run=False)
-            results.append(deploymod.deploy_host(d, h, dry_run=False))
+            initial_mutations = d.mutations
+            initial_plan = len(d.planned)
+            credentials = cfgmod.secret_values(cfg, h)
+            results.append(deploymod.deploy_host(d, h, dry_run=False, credentials=credentials))
         except Exception as e:  # noqa: BLE001 - surface, never crash the batch
             n_fail += 1
-            results.append({"host": h.get("host"), "error": str(e), "changed": [],
-                            "mutations": 0})
+            results.append({"host": h.get("host"), "status": "failed", "error": refreshmod.safe_error(e),
+                            "changed": [path for action, path in d.planned[initial_plan:] if action == 'write'] if d else [],
+                            "mutations": d.mutations - initial_mutations if d else 0})
     code = EXIT_OK
     if not args.dry_run and n_fail:
         code = EXIT_ALL_FAILED if n_fail == len(hosts) else EXIT_PARTIAL
     return code, {"command": "deploy", "ts": _now(), "dry_run": args.dry_run,
+                  "status": 'planned' if args.dry_run else 'failed' if n_fail == len(hosts) else 'partial' if n_fail else 'configured',
                   "results": results,
                   "summary": {"total": len(hosts), "failed": n_fail,
                               "changed": sum(len(r.get("changed", [])) for r in results)},
@@ -193,10 +209,12 @@ def cmd_healthcheck(cfg, args, factory=_default_factory, **_):
     for h in hosts:
         try:
             d = factory(h, dry_run=args.dry_run)
-            rep = healthmod.probe(d, h, timeout=args.timeout)
+            refreshmod.invoke_runtime(d, h, 'health', timeout=args.timeout)
+            rep = dict(remotemod.host_settings(h), healthy=True, category='ok', action='none',
+                       has_refresh_token=healthmod.has_refresh_token(h, role=h.get('broker_role', 'slave')))
         except Exception as e:  # noqa: BLE001
             rep = {"host": h.get("host"), "healthy": False, "category": "unknown",
-                   "action": "fail", "error": str(e), "has_refresh_token": False,
+                   "action": "fail", "error": refreshmod.safe_error(e), "has_refresh_token": False,
                    "auth_mode": cfg.auth_mode(h)}
         if not rep.get("healthy"):
             n_unhealthy += 1
@@ -220,10 +238,18 @@ def cmd_healthcheck(cfg, args, factory=_default_factory, **_):
 
 def cmd_refresh(cfg, args, factory=_default_factory, **_):
     hosts = _select_hosts(cfg, args.host)
-    plans = [dict(refreshmod.plan_refresh(h), host=h.get("host")) for h in hosts]
-    return EXIT_OK, {"command": "refresh", "ts": _now(), "dry_run": args.dry_run,
-                     "plans": plans, "exit_code": EXIT_OK,
-                     "note": "jwt/ccg-native self-renew; ccg-mint/oauth-broker act on schedule"}
+    planning = args.dry_run or getattr(args, 'command', None) == 'plan-refresh'
+    if planning:
+        plans = [dict(refreshmod.plan_refresh(h), host=h.get('host')) for h in hosts]
+        return EXIT_OK, {'command': 'plan-refresh', 'ts': _now(), 'dry_run': True,
+                         'status': 'planned', 'plans': plans, 'executed': False, 'exit_code': EXIT_OK}
+    results = refreshmod.execute_refresh(cfg, hosts, factory, timeout=getattr(args, 'timeout', 60))
+    failed = sum(not row['ok'] for row in results)
+    code = EXIT_ALL_FAILED if failed == len(hosts) else EXIT_PARTIAL if failed else EXIT_OK
+    return code, {'command': 'refresh', 'ts': _now(), 'dry_run': False, 'executed': True,
+                  'status': 'failed' if code == EXIT_ALL_FAILED else 'partial' if failed else 'completed',
+                  'results': results, 'summary': {'total': len(hosts), 'failed': failed,
+                  'succeeded': len(hosts) - failed}, 'exit_code': code}
 
 
 def cmd_status(cfg, args, factory=_default_factory, **_):
@@ -236,7 +262,7 @@ def cmd_status(cfg, args, factory=_default_factory, **_):
 
 
 COMMANDS = {
-    "deploy": cmd_deploy, "refresh": cmd_refresh, "healthcheck": cmd_healthcheck,
+    "deploy": cmd_deploy, "refresh": cmd_refresh, "plan-refresh": cmd_refresh, "healthcheck": cmd_healthcheck,
     "status": cmd_status, "verify-config": cmd_verify_config, "doctor": cmd_doctor,
 }
 
@@ -267,7 +293,10 @@ def run(argv=None, factory=_default_factory):
         return _emit(args, EXIT_CONFIG, {"command": args.command, "error": "config not found: %s" % cfg_path, "exit_code": EXIT_CONFIG})
     except cfgmod.ConfigError as e:
         return _emit(args, EXIT_CONFIG, {"command": args.command, "error": str(e), "exit_code": EXIT_CONFIG})
-    code, result = COMMANDS[args.command](cfg, args, factory=factory)
+    try:
+        code, result = COMMANDS[args.command](cfg, args, factory=factory)
+    except cfgmod.ConfigError as exc:
+        return _emit(args, EXIT_CONFIG, {'command': args.command, 'error': str(exc), 'exit_code': EXIT_CONFIG})
     return _emit(args, code, result)
 
 

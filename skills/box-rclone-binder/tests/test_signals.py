@@ -82,9 +82,9 @@ class S1Refresh(unittest.TestCase):
         finally:
             srv.shutdown()
         self.assertTrue(res["ok"])
-        # injection is BY REFERENCE (@file), token value never on argv
-        self.assertIn("token=@%s" % tf, res["inject"])
-        self.assertFalse(any("AT-XYZ" in a for a in res["inject"]))
+        # The installed runtime reads this file into rclone's environment, never argv.
+        self.assertEqual(res['delivery'], 'rclone-environment')
+        self.assertNotIn('AT-XYZ', json.dumps(res))
         self.assertTrue(os.path.exists(tf))
 
     def test_ccg_mint_timer_under_60(self):
@@ -140,9 +140,11 @@ class S1Refresh(unittest.TestCase):
             f.write("424242")                       # residual pid from a crashed run
         lk = refreshmod.FileLock(lp, pid_alive=lambda p: False).acquire()
         try:
-            self.assertEqual(open(lp).read().strip(), str(os.getpid()))  # took it over
+            with self.assertRaises(refreshmod.Locked):
+                refreshmod.FileLock(lp).acquire()
         finally:
             lk.release()
+        self.assertEqual(open(lp).read().strip(), str(os.getpid()))
 
     def test_live_fresh_lock_still_blocks(self):
         lp = os.path.join(self.tmp, "live.lock")
@@ -160,9 +162,11 @@ class S1Refresh(unittest.TestCase):
         os.utime(lp, (1.0, 1.0))                     # ancient mtime => hung even if "alive"
         lk = refreshmod.FileLock(lp, stale_after=60, pid_alive=lambda p: True).acquire()
         try:
-            self.assertEqual(open(lp).read().strip(), str(os.getpid()))
+            with self.assertRaises(refreshmod.Locked):
+                refreshmod.FileLock(lp).acquire()
         finally:
             lk.release()
+        self.assertEqual(open(lp).read().strip(), str(os.getpid()))
 
     def test_broker_recovers_after_crash_residual_lock(self):
         # End-to-end: a crash left lock+state behind; refresh must self-heal, not stay Locked.
@@ -196,10 +200,12 @@ class S2Idempotency(unittest.TestCase):
     def test_second_deploy_is_noop(self):
         fs = {}
         d1 = FakeHostDriver(host(), fs=fs)
-        r1 = deploymod.deploy_host(d1, host(), dry_run=False)
+        secret = {'jwt_config': json.dumps({'synthetic': True})}
+        r1 = deploymod.deploy_host(d1, host(), dry_run=False, credentials=secret)
         self.assertGreater(len(r1["changed"]), 0)
-        d2 = FakeHostDriver(host(), fs=d1.fs)         # same backing store after run 1
-        r2 = deploymod.deploy_host(d2, host(), dry_run=False)
+        d2 = FakeHostDriver(host(), fs=d1.fs, modes=d1.modes, directories=d1.directories,
+                            services=d1.services)  # complete host state after run 1
+        r2 = deploymod.deploy_host(d2, host(), dry_run=False, credentials=secret)
         self.assertEqual(r2["changed"], [])
         self.assertEqual(d2.mutations, 0)
         # rendered bytes are deterministic
@@ -420,7 +426,10 @@ class S10CLI(unittest.TestCase):
 
     def test_healthcheck_json_and_exit(self):
         def fac(h, dry_run):
-            return FakeHostDriver(h, responses={"rclone lsd": (0, "  -1 dir\n", "")})
+            def receipt(argv, input_text):
+                return (0, json.dumps({'ok': True, 'operation_id': argv[argv.index('--operation-id') + 1],
+                                      'auth_mode': h['auth_mode'], 'action': 'health'}), '')
+            return FakeHostDriver(h, responses={'python3': receipt})
         code = cli.run(["healthcheck", "-c", CONFIG], factory=fac)
         self.assertEqual(code, 0)
 

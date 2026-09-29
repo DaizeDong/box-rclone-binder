@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import os
 import re
+import json
+from pathlib import Path
 
 from . import AUTH_MODES
 
@@ -144,6 +146,7 @@ def validate(cfg: Config) -> None:
     if src not in _VALID_SOURCES:
         raise ConfigError("secrets.source %r not in %s" % (src, _VALID_SOURCES))
     for i, h in enumerate(cfg.hosts):
+        validate_host(h)
         if not h.get("host"):
             raise ConfigError("hosts[%d] missing 'host'" % i)
         am = cfg.auth_mode(h)
@@ -156,6 +159,72 @@ def validate(cfg: Config) -> None:
         if k.endswith("_ref") and v is not None:
             if not _POINTER_RE.match(str(v)):
                 raise ConfigError("secrets.%s is not a pointer (looks like a literal): refuse" % k)
+    names = [host['host'] for host in cfg.hosts]
+    if len(names) != len(set(names)):
+        raise ConfigError('host names must be unique')
+    brokers = [host for host in cfg.hosts if cfg.auth_mode(host) == 'oauth-broker']
+    if brokers and sum(host.get('broker_role') == 'master' for host in brokers) != 1:
+        raise ConfigError('oauth-broker requires exactly one host with broker_role: master')
+
+
+def validate_host(host):
+    if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*', str(host.get('remote_name', ''))):
+        raise ConfigError('remote_name must contain letters, digits or underscores')
+    path = host.get('config_dir', '/etc/box-binder')
+    if not isinstance(path, str) or not re.fullmatch(r'/[A-Za-z0-9_./-]+', path) or '..' in path.split('/'):
+        raise ConfigError('config_dir must be an absolute Linux path without traversal or whitespace')
+    if path == '/' or path.endswith('/'):
+        raise ConfigError('config_dir must name a dedicated directory without a trailing slash')
+    if not re.fullmatch(r'[A-Za-z0-9*/:,. -]+', str(host.get('health_interval', '*:0/15'))):
+        raise ConfigError('health_interval contains unsupported characters')
+    value = host.get('mint_interval_min', 45)
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value < 60:
+        raise ConfigError('mint_interval_min must be an integer from 1 to 59')
+    if host.get('auth_mode', 'jwt') not in AUTH_MODES:
+        raise ConfigError('unsupported auth_mode')
+    if host.get('auth_mode') == 'oauth-broker' and host.get('broker_role', 'slave') not in ('master', 'slave'):
+        raise ConfigError('broker_role must be master or slave')
+    for key in ('host', 'ssh'):
+        value = host.get(key, '')
+        if not isinstance(value, str) or value.startswith('-') or '\n' in value or '\r' in value:
+            raise ConfigError('invalid host or SSH target')
+
+
+def secret_values(cfg, host):
+    """Resolve supported sources for transport only; callers must never report this result."""
+    mode = cfg.auth_mode(host)
+    if mode == 'oauth-broker' and host.get('broker_role') != 'master':
+        return {}
+    refs = dict(cfg.secrets)
+    refs.update(host.get('secrets') or {})
+    source = refs.get('source', 'env')
+    if source not in ('env', 'file'):
+        raise ConfigError('execution supports env/file secrets; export other backends to one of these sources')
+    required = ['jwt_config'] if mode == 'jwt' else ['client_id', 'client_secret']
+    if mode in ('ccg-native', 'ccg-mint'):
+        required.append('box_subject_id')
+    if mode == 'oauth-broker' and refs.get('broker_state_ref'):
+        required.append('broker_state')
+    result = {}
+    for key in required:
+        pointer = refs.get(key + '_ref')
+        try:
+            if not isinstance(pointer, str) or not pointer:
+                raise ValueError
+            value = os.environ.get(pointer) if source == 'env' else (
+                Path(pointer).read_text(encoding='utf-8') if os.path.isabs(pointer) else None)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError
+            if key in ('jwt_config', 'broker_state'):
+                parsed = json.loads(value)
+                if not isinstance(parsed, dict) or not parsed:
+                    raise ValueError
+                if key == 'broker_state' and not isinstance(parsed.get('refresh_token'), str):
+                    raise ValueError
+            result[key] = value
+        except (OSError, ValueError, TypeError):
+            raise ConfigError('required secret reference unavailable or invalid: ' + key + '_ref') from None
+    return result
 
 
 def resolve_refs(cfg: Config) -> dict:

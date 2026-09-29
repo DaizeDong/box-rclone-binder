@@ -1,6 +1,6 @@
 # box-rclone-binder
 
-用 rclone 把一个 Box 网盘绑到多台服务器：自动续期、过期自愈、多机一致，仓库里零密钥。
+在多台 Linux 服务器上部署 Box/rclone 运行环境，验证访问权限，并逐台报告凭据刷新结果。
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -49,16 +49,21 @@ git clone https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/b
 
 ```bash
 cd skills/box-rclone-binder
-cp config/machines.example.yaml machines.yaml      # 改 hosts；密钥保持 *_ref 指针，不写值
-python scripts/box_binder.py doctor        -c machines.yaml --json   # 探 rclone/ssh/systemd/CCG
-python scripts/box_binder.py verify-config -c machines.yaml --json   # schema + 禁内联密钥
-python scripts/box_binder.py deploy        -c machines.yaml --dry-run # 只规划，不动任何状态
-python scripts/box_binder.py deploy        -c machines.yaml          # 幂等铺到所有主机
-python scripts/box_binder.py healthcheck   -c machines.yaml --json   # 只读探活 + 一致性
+export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/machines.yaml
+python scripts/init_config.py --out "$BOX_RCLONE_BINDER_CONFIG"
+python scripts/box_binder.py doctor        -c "$BOX_RCLONE_BINDER_CONFIG" --json   # 探 rclone/ssh/systemd/CCG
+python scripts/box_binder.py verify-config -c "$BOX_RCLONE_BINDER_CONFIG" --json   # schema + 禁内联密钥
+python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG" --dry-run # 只规划，不动任何状态
+python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG"          # 幂等铺到所有主机
+python scripts/box_binder.py healthcheck   -c "$BOX_RCLONE_BINDER_CONFIG" --json   # 只读探活 + 一致性
 python tests/run_gate.py                                             # 完整 mock 验收闸
 ```
 
 ## 配置
+
+`plan-refresh` 只生成计划；`refresh` 才执行刷新并报告本次结果。部署成功表示文件和定时器
+状态已经读回核对，不表示 Box 授权已经可用。执行阶段支持 env/file 密钥来源，其他后端需要
+先导出。当前运行环境使用 systemd，不安装 cron，也不自动发送告警或在命令内重试。
 
 `box-rclone-binder` 是**带 config 的 skill**, 它读取一份按机群组织的清单（`machines.yaml`：主机、
 鉴权模式，以及指向密钥存放处的**指针**）。完整规范见

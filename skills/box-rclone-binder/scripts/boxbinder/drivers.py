@@ -8,6 +8,7 @@ infra. `dry_run` drivers refuse mutating ops and count them (must stay 0 under -
 from __future__ import annotations
 
 import hashlib
+import json
 import shlex
 import subprocess
 
@@ -16,6 +17,13 @@ def sha256_text(s) -> str:
     if isinstance(s, str):
         s = s.encode("utf-8")
     return hashlib.sha256(s).hexdigest()
+
+
+class RemoteError(RuntimeError):
+    """Safe diagnostic without remote output or secret-bearing input."""
+    def __init__(self, operation, code):
+        self.operation = operation
+        super().__init__('%s failed (%s)' % (operation, code))
 
 
 class HostDriver:
@@ -40,6 +48,26 @@ class HostDriver:
     def exec(self, argv, mutate=False, input_text=None, timeout=None):
         raise NotImplementedError
 
+    def checked_exec(self, argv, *, operation, **kwargs):
+        result = self.exec(argv, **kwargs)
+        if not isinstance(result, tuple) or len(result) != 3 or type(result[0]) is not int:
+            raise RemoteError(operation, 'invalid response')
+        if result[0] != 0:
+            raise RemoteError(operation, 'exit %d' % result[0])
+        return result[1]
+
+    def stat(self, path):
+        raise NotImplementedError
+
+    def ensure_directory(self, path, mode=0o700):
+        if self.stat(path) == {'kind': 'directory', 'mode': mode}:
+            return False
+        self.checked_exec(['install', '-d', '-m', '%o' % mode, '--', path],
+                          operation='create directory', mutate=True)
+        if self.stat(path) != {'kind': 'directory', 'mode': mode}:
+            raise RemoteError('directory readback', 'mismatch')
+        return True
+
     # write ----------------------------------------------------------------------
     def write_text(self, path, content, mode=0o600):
         if self.dry_run:
@@ -57,17 +85,28 @@ class HostDriver:
 class FakeHostDriver(HostDriver):
     """In-memory host. `fs` maps path->content; `responses` maps a command-prefix to (rc,out,err)."""
 
-    def __init__(self, host, fs=None, responses=None, dry_run=False):
+    def __init__(self, host, fs=None, responses=None, dry_run=False, modes=None, directories=None, services=None):
         super().__init__(host, dry_run)
         self.fs = dict(fs or {})
         self.responses = dict(responses or {})
         self.exec_log = []
+        self.modes = dict(modes or {path: 0o600 for path in self.fs})
+        self.directories = dict(directories or {})
+        self.services = dict(services or {})
 
     def read_text(self, path):
         return self.fs.get(path)
 
     def _write_impl(self, path, content, mode):
         self.fs[path] = content
+        self.modes[path] = mode
+
+    def stat(self, path):
+        if path in self.directories:
+            return {'kind': 'directory', 'mode': self.directories[path]}
+        if path in self.fs:
+            return {'kind': 'file', 'mode': self.modes[path]}
+        return None
 
     def exec(self, argv, mutate=False, input_text=None, timeout=None):
         cmd = " ".join(argv) if isinstance(argv, (list, tuple)) else str(argv)
@@ -79,7 +118,20 @@ class FakeHostDriver(HostDriver):
             self.mutations += 1
         for prefix, resp in self.responses.items():
             if cmd.startswith(prefix):
-                return resp
+                return resp(argv, input_text) if callable(resp) else resp
+        if isinstance(argv, (list, tuple)) and argv[:2] == ['install', '-d']:
+            self.directories[argv[-1]] = int(argv[argv.index('-m') + 1], 8)
+        if isinstance(argv, (list, tuple)) and argv[0] == 'systemctl':
+            action, unit = argv[1], argv[-1]
+            state = self.services.setdefault(unit, {'enabled': False, 'active': False})
+            if action == 'is-enabled':
+                return (0, 'enabled\n', '') if state['enabled'] else (1, 'disabled\n', '')
+            if action == 'is-active':
+                return (0, 'active\n', '') if state['active'] else (3, 'inactive\n', '')
+            if action == 'enable':
+                state['enabled'] = True
+            if action == 'start':
+                state['active'] = True
         return (0, "", "")
 
 
@@ -96,14 +148,36 @@ class SSHHostDriver(HostDriver):
 
     def _ssh(self, remote_cmd, input_text=None, timeout=60):
         argv = ["ssh"] + self.ssh_opts + [self.ssh_target, remote_cmd]
-        p = subprocess.run(argv, input=(input_text.encode() if input_text else None),
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        try:
+            p = subprocess.run(argv, input=(input_text.encode() if input_text is not None else None),
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        except (OSError, subprocess.TimeoutExpired):
+            raise RemoteError('SSH transport', 'unavailable or timed out') from None
         return (p.returncode, p.stdout.decode("utf-8", "replace"),
                 p.stderr.decode("utf-8", "replace"))
 
     def read_text(self, path):
-        rc, out, _ = self._ssh("cat -- %s 2>/dev/null" % shlex.quote(path))
-        return out if rc == 0 else None
+        q = shlex.quote(path)
+        rc, out, _ = self._ssh('if test ! -e %s; then exit 44; fi; cat -- %s' % (q, q))
+        if rc == 44:
+            return None
+        if rc != 0:
+            raise RemoteError('read remote file', 'exit %s' % rc)
+        return out
+
+    def stat(self, path):
+        code = ('import json,os,stat,sys; p=sys.argv[1]; '
+                's=os.stat(p) if os.path.exists(p) else None; '
+                'print(json.dumps(None if s is None else {"kind": "directory" if stat.S_ISDIR(s.st_mode) '
+                'else "file" if stat.S_ISREG(s.st_mode) else "other", "mode": stat.S_IMODE(s.st_mode)}))')
+        out = self.checked_exec(['python3', '-c', code, path], operation='stat remote path')
+        try:
+            value = json.loads(out)
+            if value is not None and (not isinstance(value, dict) or set(value) != {'kind', 'mode'}):
+                raise ValueError
+            return value
+        except (TypeError, ValueError):
+            raise RemoteError('stat remote path', 'invalid response') from None
 
     def exec(self, argv, mutate=False, input_text=None, timeout=None):
         cmd = " ".join(shlex.quote(a) for a in argv) if isinstance(argv, (list, tuple)) else str(argv)
@@ -121,8 +195,9 @@ class SSHHostDriver(HostDriver):
         m = "%o" % mode
         remote = (
             'set -e; d=$(dirname %s); t=$(mktemp "$d/.bbtmp.XXXXXX"); '
+            'trap \'rm -f "$t"\' EXIT HUP INT TERM; '
             'cat > "$t"; chmod %s "$t"; mv -f "$t" %s; sync' % (q, m, q)
         )
         rc, _, err = self._ssh(remote, input_text=content, timeout=60)
         if rc != 0:
-            raise RuntimeError("remote atomic write failed for %s: %s" % (path, err.strip()))
+            raise RemoteError('remote atomic write', 'exit %s' % rc)

@@ -1,6 +1,6 @@
 # box-rclone-binder
 
-Bind one Box drive to many servers via rclone, auto-refresh, self-heal, multi-host consistency. Zero secrets in the repo.
+Deploy a Box/rclone runtime across Linux servers, validate access, and refresh credentials with per-host results.
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -31,9 +31,8 @@ not "it works".
 
 ## What it is (and isn't)
 
-- **Is:** a focused CLI (`box-binder`) that binds ONE Box drive to MANY servers via rclone and keeps
-  it alive unattended, idempotent deploy, auto-refresh/self-heal, multi-host consistency checks,
-  cron/systemd scheduling, Discord alerts.
+- **Is:** a focused CLI (`box-binder`) for checked Linux/systemd deployment, explicit refresh,
+  scheduled CCG mint or broker distribution, and read-only access validation.
 - **Isn't:** a single-machine helper (use plain `rclone config`), a generic cron templater, or a
   general cloud sync tool. One job, three modules (deploy / refresh / healthcheck).
 
@@ -53,12 +52,13 @@ git clone https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/b
 
 ```bash
 cd skills/box-rclone-binder
-cp config/machines.example.yaml machines.yaml      # edit hosts; secrets stay as *_ref pointers
-python scripts/box_binder.py doctor        -c machines.yaml --json   # probe rclone/ssh/systemd/CCG
-python scripts/box_binder.py verify-config -c machines.yaml --json   # schema + no inline secrets
-python scripts/box_binder.py deploy        -c machines.yaml --dry-run # plan, touches nothing
-python scripts/box_binder.py deploy        -c machines.yaml          # converge all hosts
-python scripts/box_binder.py healthcheck   -c machines.yaml --json   # read-only probe + consistency
+export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/machines.yaml
+python scripts/init_config.py --out "$BOX_RCLONE_BINDER_CONFIG"
+python scripts/box_binder.py doctor        -c "$BOX_RCLONE_BINDER_CONFIG" --json   # probe rclone/ssh/systemd/CCG
+python scripts/box_binder.py verify-config -c "$BOX_RCLONE_BINDER_CONFIG" --json   # schema + no inline secrets
+python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG" --dry-run # plan, touches nothing
+python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG"          # converge all hosts
+python scripts/box_binder.py healthcheck   -c "$BOX_RCLONE_BINDER_CONFIG" --json   # read-only probe + consistency
 python tests/run_gate.py                                             # full mock acceptance gate
 ```
 
@@ -105,10 +105,18 @@ token keeps expiring", "keep Box mounted across my servers", "multi-host rclone 
 
 ## Limitations
 
+`plan-refresh` only plans; `refresh` executes and reports current per-host outcomes. Deployment
+success establishes configured files and enabled/active timers. It does not establish working
+Box authorization. Read the [deployment contract](skills/box-rclone-binder/reference/deploy.md)
+and [refresh contract](skills/box-rclone-binder/reference/refresh-healthcheck.md) for exact behavior.
+Execution resolves env/file secret sources; other providers need an external export step.
+Cron installation, automatic alerts, and in-command retry/backoff are outside this runtime.
+
 - **One-time Box authorization is a human step** (login + Admin approve), deferred to the user; see
   `skills/box-rclone-binder/reference/runbook.md`. Until then the logic is fully tested under mocks
   but the real end-to-end `rclone lsd box:` smoke test cannot run.
-- CCG-native support is rclone-version dependent; `doctor` decides native vs mint.
+- CCG-native support is rclone-version dependent; `doctor` reports installed tools but does not
+  test Box authorization or renewal across an expiry boundary.
 - oauth-broker (personal Box) cannot be strictly unattended forever (a broken chain needs re-auth).
 
 ## Languages

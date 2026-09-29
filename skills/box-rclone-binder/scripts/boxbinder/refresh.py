@@ -2,8 +2,8 @@
 
 - jwt / ccg-native : rclone renews automatically (tokenRenewer / native CCG). refresh() is a
   validation-only no-op: it runs a probe and reports; it does NOT mint anything.
-- ccg-mint         : POST client_credentials to mint a fresh access_token, written to a
-  chmod-600 @file and injected by reference (never as an argv). A <60m timer re-mints.
+- ccg-mint         : POST client_credentials, persist a validated access-only token in a
+  protected file, then let the runtime supply it through rclone's environment.
 - oauth-broker     : single-master flock'd refresh. The new refresh_token is persisted FIRST,
   THEN access-only blobs (refresh_token STRIPPED) are rendered for slaves. invalid_grant is a
   non-retryable broken chain (CRITICAL), not a retry.
@@ -18,6 +18,7 @@ import os
 import time
 import urllib.parse
 import urllib.request
+import uuid
 
 from .atomic import atomic_write
 
@@ -38,8 +39,7 @@ class Locked(RuntimeError):
 
 # ---- cross-platform single-instance lock (broker) ----------------------------------------
 
-# A broker refresh completes in seconds. A lock far older than this is from a crashed/hung
-# holder, not a live refresh, recover it instead of dead-locking every future refresh.
+# Legacy constructor default retained for callers; FileLock uses OS ownership, not age.
 _STALE_LOCK_SECONDS = 900
 
 
@@ -85,79 +85,52 @@ def _pid_alive(pid: int) -> bool:
 
 
 class FileLock:
-    """Single-instance lock with stale-holder recovery.
+    """OS-owned exclusive lock; a crash releases ownership without stale-file deletion.
 
-    A crash that leaves the lock file behind would otherwise dead-lock every future
-    broker_refresh (permanent ``Locked`` -> refresh_token expires unattended). On contention we
-    take the lock over iff its holder is provably dead OR the lock is far older than any real
-    refresh; otherwise we block. ``pid_alive`` is injectable so the recovery path is hermetically
-    testable without spawning/killing real processes.
+    The persistent file stores diagnostic PID metadata only. Age and PID guesses
+    never authorize taking a live owner's lock. Legacy constructor options remain
+    accepted for callers, but ownership comes from the OS lock.
     """
 
     def __init__(self, path, stale_after=_STALE_LOCK_SECONDS, pid_alive=None):
         self.path = path
         self._fd = None
-        self.stale_after = stale_after
-        self._pid_alive = pid_alive
-
-    def _alive(self, pid):
-        # Resolve the probe at call time so a test that monkeypatches the module fn is honored.
-        return (self._pid_alive or _pid_alive)(pid)
-
-    def _read_holder(self):
-        try:
-            with open(self.path, "r") as f:
-                raw = f.read().strip()
-            pid = int(raw) if raw.isdigit() else -1
-        except (OSError, ValueError):
-            pid = -1
-        try:
-            age = time.time() - os.path.getmtime(self.path)
-        except OSError:
-            age = None
-        return pid, age
-
-    def _is_stale(self):
-        pid, age = self._read_holder()
-        if pid <= 0:
-            return True  # empty / unparseable holder -> orphan
-        if not self._alive(pid):
-            return True  # holder process is gone (crash) -> orphan
-        if age is not None and self.stale_after is not None and age > self.stale_after:
-            return True  # holder alive but lock far older than any real refresh -> hung
-        return False
-
-    def _create(self):
-        self._fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
-        os.write(self._fd, str(os.getpid()).encode())
 
     def acquire(self):
+        fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
         try:
-            self._create()
-            return self
-        except FileExistsError:
-            pass
-        # Contention: only take over a provably stale lock; a live, fresh holder still blocks.
-        if not self._is_stale():
-            raise Locked("another box-binder refresh holds %s" % self.path)
-        try:
-            os.remove(self.path)
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
-            pass
+            os.close(fd)
+            raise Locked('another refresh owns the broker lock, or locking is unavailable') from None
+        self._fd = fd
         try:
-            self._create()  # re-create atomically; losing this race means a live racer won
-        except FileExistsError:
-            raise Locked("lock %s re-taken during stale recovery" % self.path)
+            os.ftruncate(fd, 0)
+            os.write(fd, str(os.getpid()).encode())
+        except OSError:
+            self.release()
+            raise
         return self
 
     def release(self):
         if self._fd is not None:
-            os.close(self._fd)
+            fd = self._fd
             self._fd = None
-        try:
-            os.remove(self.path)
-        except OSError:
-            pass
+            try:
+                if os.name == 'nt':
+                    import msvcrt
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
 
     def __enter__(self):
         return self.acquire()
@@ -195,24 +168,26 @@ def build_mint_fields(client_id, client_secret, enterprise_id, sub_type="enterpr
 
 
 def mint_access_token(token_url, fields, tokenfile, timeout=20):
-    """Mint an access token and write it to a chmod-600 @file. Returns an injection spec.
-
-    The token is delivered to rclone BY REFERENCE (`token=@<file>`), never on argv — so it
-    cannot leak via ps/argv/history. Returns dict with the rclone injection command parts.
-    """
+    """Persist a valid access-only token for the runtime's rclone environment."""
     code, payload = _post_form(token_url, fields, timeout=timeout)
-    if code == 200 and "access_token" in payload:
-        blob = {"access_token": payload["access_token"],
-                "token_type": payload.get("token_type", "bearer"),
-                "expiry": _expiry_iso(payload.get("expires_in", 3600))}
+    if code == 200:
+        blob = _token_blob(payload)
         atomic_write(tokenfile, json.dumps(blob), mode=0o600)
-        return {"ok": True, "tokenfile": tokenfile,
-                "inject": ["rclone", "config", "update", "box",
-                           "token=@%s" % tokenfile, "--non-interactive"]}
-    err = (payload or {}).get("error", "")
+        return {"ok": True, "tokenfile": tokenfile, "delivery": "rclone-environment"}
+    err = payload.get('error', '') if isinstance(payload, dict) else ''
     if err in ("invalid_grant", "invalid_client", "unauthorized_client"):
         raise NonRetryable("CCG mint rejected: %s" % err)
-    raise Retryable("CCG mint transient failure: http %s %s" % (code, err))
+    raise Retryable("CCG mint failed: http %s" % code)
+
+
+def _token_blob(payload):
+    if not isinstance(payload, dict):
+        raise Retryable('invalid token response')
+    token, seconds = payload.get('access_token'), payload.get('expires_in')
+    if (not isinstance(token, str) or not token or isinstance(seconds, bool)
+            or not isinstance(seconds, int) or not 0 < seconds <= 86400):
+        raise Retryable('invalid token or expiry in response')
+    return {'access_token': token, 'token_type': 'bearer', 'expiry': _expiry_iso(seconds)}
 
 
 def _expiry_iso(expires_in):
@@ -241,21 +216,21 @@ def broker_refresh(state_path, token_url, lock_path, slaves, client_id, client_s
         fields = {"grant_type": "refresh_token", "refresh_token": rt,
                   "client_id": client_id, "client_secret": client_secret}
         code, payload = _post_form(token_url, fields, timeout=timeout)
-        if code != 200 or "access_token" not in payload:
-            err = (payload or {}).get("error", "http_%s" % code)
+        if code != 200 or not isinstance(payload, dict):
+            err = payload.get('error', '') if isinstance(payload, dict) else ''
             if err == "invalid_grant":
                 raise NonRetryable("refresh chain broken (invalid_grant): manual re-auth required")
-            raise Retryable("broker refresh transient: %s" % err)
+            raise Retryable("broker refresh failed: http %s" % code)
+        if not isinstance(payload.get('refresh_token'), str) or not payload['refresh_token']:
+            raise NonRetryable('broker response omitted the rotated refresh token; re-auth may be required')
         events.append("token_minted")
         # 1) PERSIST new refresh_token FIRST (atomic)
-        new_state = {"refresh_token": payload.get("refresh_token", rt),
+        new_state = {"refresh_token": payload['refresh_token'],
                      "updated": _expiry_iso(0)}
         atomic_write(state_path, json.dumps(new_state), mode=0o600)
         events.append("refresh_token_persisted")
         # 2) THEN render access-only blobs for slaves (refresh_token STRIPPED)
-        blob = {"access_token": payload["access_token"],
-                "token_type": payload.get("token_type", "bearer"),
-                "expiry": _expiry_iso(payload.get("expires_in", 3600))}
+        blob = _token_blob(payload)
         assert "refresh_token" not in blob
         rendered = {}
         for s in slaves:
@@ -288,3 +263,75 @@ def plan_refresh(host: dict) -> dict:
     if am == "oauth-broker":
         return {"auth_mode": am, "action": "single-master-refresh+distribute"}
     return {"auth_mode": am, "action": "unknown"}
+
+
+def invoke_runtime(driver, host, action, timeout=60):
+    """Accept only a successful receipt for this invocation and selected mode."""
+    from .drivers import RemoteError
+    operation_id = uuid.uuid4().hex
+    argv = ['python3', '/opt/box-binder/box_runtime.py', action, '--host-file',
+            host.get('config_dir', '/etc/box-binder') + '/host.json',
+            '--operation-id', operation_id, '--timeout', str(timeout)]
+    output = driver.checked_exec(argv, mutate=action == 'refresh', timeout=timeout + 10,
+                                 operation='runtime ' + action)
+    try:
+        receipt = json.loads(output)
+        if (not isinstance(receipt, dict) or receipt.get('ok') is not True
+                or receipt.get('operation_id') != operation_id
+                or receipt.get('auth_mode') != host.get('auth_mode', 'jwt')
+                or receipt.get('action') != action):
+            raise ValueError
+    except (TypeError, ValueError):
+        raise RemoteError('runtime receipt', 'stale, malformed or unsuccessful') from None
+    return {'host': host['host'], 'ok': True, 'status': 'completed', 'action': action,
+            'auth_mode': host.get('auth_mode', 'jwt'), 'operation_id': operation_id}
+
+
+def safe_error(exc):
+    from .drivers import RemoteError
+    return str(exc) if isinstance(exc, RemoteError) else type(exc).__name__
+
+
+def execute_refresh(cfg, selected, factory, timeout=60):
+    """Execute selected hosts; retries of broker slaves reuse the persisted access token."""
+    from .runtime import access_blob
+    from .deploy import _converge_file
+    results = {}
+    brokers = [host for host in selected if cfg.auth_mode(host) == 'oauth-broker']
+    for host in selected:
+        if cfg.auth_mode(host) == 'oauth-broker':
+            continue
+        try:
+            driver = factory(host, dry_run=False)
+            action = 'refresh' if cfg.auth_mode(host) == 'ccg-mint' else 'validate'
+            results[host['host']] = invoke_runtime(driver, host, action, timeout)
+        except Exception as exc:
+            results[host['host']] = {'host': host['host'], 'ok': False, 'status': 'failed', 'error': safe_error(exc)}
+    if brokers:
+        try:
+            masters = [host for host in cfg.hosts if cfg.auth_mode(host) == 'oauth-broker'
+                       and host.get('broker_role') == 'master']
+            if len(masters) != 1:
+                raise NonRetryable('exactly one broker master is required')
+            master = masters[0]
+            source = factory(master, dry_run=False)
+            if master in brokers:
+                results[master['host']] = invoke_runtime(source, master, 'refresh', timeout)
+            raw = source.read_text(master.get('config_dir', '/etc/box-binder') + '/access.json')
+            blob = json.dumps(access_blob(json.loads(raw)), sort_keys=True)
+        except Exception as exc:
+            for host in brokers:
+                results[host['host']] = {'host': host['host'], 'ok': False, 'status': 'failed',
+                                         'error': 'broker source unavailable: ' + safe_error(exc)}
+        else:
+            for host in brokers:
+                if host is master or host == master:
+                    continue
+                try:
+                    driver = factory(host, dry_run=False)
+                    target = host.get('config_dir', '/etc/box-binder') + '/access.json'
+                    _converge_file(driver, target, blob, 0o600)
+                    results[host['host']] = invoke_runtime(driver, host, 'validate', timeout)
+                except Exception as exc:
+                    results[host['host']] = {'host': host['host'], 'ok': False, 'status': 'failed', 'error': safe_error(exc)}
+    return [results[host['host']] for host in selected]

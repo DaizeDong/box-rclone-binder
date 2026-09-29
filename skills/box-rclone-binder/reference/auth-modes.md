@@ -30,10 +30,11 @@ Client Credentials Grant trades the RSA key for `client_id` + `client_secret`. r
 is version-dependent (source review shows `--box-client-credentials` may not send the mandatory
 `box_subject_id`, yielding HTTP 400). So:
 
-- `box-binder doctor` probes whether CCG-native actually mints a token across a 60-min boundary.
+- `box-binder doctor` reports installed tools. A separate controlled live test must establish
+  whether native CCG works across token expiry.
 - If native works -> `auth_mode: ccg-native` (env-var remote, zero external timer).
 - If not -> `auth_mode: ccg-mint`: `mint.sh` POSTs `grant_type=client_credentials` with
-  `box_subject_type=enterprise` + `box_subject_id`, writes the access token to a chmod-600 @file,
+  `box_subject_type=enterprise` + `box_subject_id`, writes access-only JSON to a mode-0600 file,
   and a systemd timer re-mints every <60 min (rclone does NOT auto-renew a static access token).
 
 ## oauth-broker (degraded; personal Box only)
