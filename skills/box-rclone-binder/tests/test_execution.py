@@ -12,7 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'tools'))
 sys.path.insert(0, str(ROOT / 'skills/box-rclone-binder/scripts'))
-from make_fixtures import inventory, canary
+from make_fixtures import inventory, canary, runtime_receipt
 import box_binder as cli
 from boxbinder import config, deploy, remote
 from boxbinder import refresh, runtime
@@ -79,8 +79,8 @@ def test_mint_form_never_expands_a_secret_into_curl_argv():
 
 def fresh_receipt(host, *, stale=False):
     def respond(argv, input_text):
-        return (0, json.dumps({'ok': True, 'operation_id': 'old' if stale else argv[argv.index('--operation-id') + 1],
-                              'auth_mode': host['auth_mode'], 'action': argv[2]}), '')
+        operation_id = 'old' if stale else argv[argv.index('--operation-id') + 1]
+        return (0, json.dumps(runtime_receipt(host, argv[2], operation_id)), '')
     return respond
 
 

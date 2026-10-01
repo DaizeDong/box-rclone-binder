@@ -35,7 +35,8 @@ access tokens -> naturally multi-host consistent, no rotation to fight. Read
 
 ## Workflow (thin)
 
-1. `box-binder doctor -c machines.yaml`, probe rclone version / ssh / systemd.
+1. Set `BOX_RCLONE_BINDER_CONFIG_DIR` to the private companion repository, then run
+   `box-binder doctor` to probe rclone version / ssh / systemd.
 2. `box-binder verify-config`, schema + secret-pointer-only + NO inline secrets (hard-fails otherwise).
 3. `box-binder deploy --dry-run`, inspect complete runtime and required credential paths; `deploy` installs them and checks timer state.
 4. `box-binder healthcheck`, run the installed runtime's read-only `rclone lsd` validation and report per-host failures.

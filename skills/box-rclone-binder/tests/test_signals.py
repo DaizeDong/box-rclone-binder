@@ -17,6 +17,9 @@ SCRIPTS = os.path.join(HERE, "..", "scripts")
 REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 CONFIG = os.path.abspath(os.path.join(HERE, "..", "config", "machines.example.yaml"))
 sys.path.insert(0, os.path.abspath(SCRIPTS))
+sys.path.insert(0, os.path.join(REPO_ROOT, 'tools'))
+
+from make_fixtures import runtime_receipt
 
 from boxbinder import config as cfgmod          # noqa: E402
 from boxbinder import deploy as deploymod        # noqa: E402
@@ -427,8 +430,8 @@ class S10CLI(unittest.TestCase):
     def test_healthcheck_json_and_exit(self):
         def fac(h, dry_run):
             def receipt(argv, input_text):
-                return (0, json.dumps({'ok': True, 'operation_id': argv[argv.index('--operation-id') + 1],
-                                      'auth_mode': h['auth_mode'], 'action': 'health'}), '')
+                operation_id = argv[argv.index('--operation-id') + 1]
+                return (0, json.dumps(runtime_receipt(h, 'health', operation_id)), '')
             return FakeHostDriver(h, responses={'python3': receipt})
         code = cli.run(["healthcheck", "-c", CONFIG], factory=fac)
         self.assertEqual(code, 0)

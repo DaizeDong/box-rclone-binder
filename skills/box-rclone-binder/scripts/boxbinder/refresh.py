@@ -266,7 +266,7 @@ def plan_refresh(host: dict) -> dict:
 
 
 def invoke_runtime(driver, host, action, timeout=60):
-    """Accept only a successful receipt for this invocation and selected mode."""
+    """Accept only a successful receipt for this invocation, host and selected mode."""
     from .drivers import RemoteError
     operation_id = uuid.uuid4().hex
     argv = ['python3', '/opt/box-binder/box_runtime.py', action, '--host-file',
@@ -278,6 +278,8 @@ def invoke_runtime(driver, host, action, timeout=60):
         receipt = json.loads(output)
         if (not isinstance(receipt, dict) or receipt.get('ok') is not True
                 or receipt.get('operation_id') != operation_id
+                or not isinstance(receipt.get('host'), str) or not receipt['host'].strip()
+                or receipt['host'] != host.get('host')
                 or receipt.get('auth_mode') != host.get('auth_mode', 'jwt')
                 or receipt.get('action') != action):
             raise ValueError

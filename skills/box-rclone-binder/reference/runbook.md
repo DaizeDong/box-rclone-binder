@@ -33,9 +33,10 @@ login / Admin approval. Do this once:
 ## Health & verification commands (read-only)
 
 ```bash
-box-binder doctor        -c machines.yaml --json
-box-binder verify-config -c machines.yaml --json
-box-binder healthcheck   -c machines.yaml --json
-box-binder status        -c machines.yaml --json
+export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion
+box-binder doctor        --json
+box-binder verify-config --json
+box-binder healthcheck   --json
+box-binder status        --json
 python tests/run_gate.py     # full mock acceptance gate (no real Box needed)
 ```

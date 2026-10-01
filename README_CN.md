@@ -70,22 +70,23 @@ python tests/run_gate.py                                             # 完整 mo
 [CONFIG.md](skills/box-rclone-binder/CONFIG.md)。
 
 - **挂载（发现顺序）:** `-c/--config <path>` → `$BOX_RCLONE_BINDER_CONFIG` →
-  `$BOX_RCLONE_BINDER_CONFIG_DIR` → `./machines.yaml` → `~/.box-rclone-binder-config/machines.yaml`
-  → `~/.config/box-rclone-binder/machines.yaml`。命中第一个即用；都没有则返回 `EXIT_CONFIG (3)`
-  并报出它找过的路径。
+  `$BOX_RCLONE_BINDER_CONFIG_DIR` → 私有伴生仓。
+  选定的文件缺失时会报错；没有选定路径则返回 `EXIT_CONFIG (3)`
+  并给出私有伴生仓的初始化指引。
 - **首次配置:**
   ```bash
   cd skills/box-rclone-binder
-  python scripts/init_config.py                       # 从模板生成 machines.yaml（确定性）
-  export BOX_RCLONE_BINDER_CONFIG=~/.box-rclone-binder-config/machines.yaml  # 或用 --out / -c
+  export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion  # 已初始化的私有 Git 仓库
+  python scripts/init_config.py                       # 在伴生仓中从合成模板生成 machines.yaml
   # 改 hosts，密钥保持 *_ref 指针，然后:
   python scripts/box_binder.py verify-config --json   # doctor: schema + 仅指针 + 禁内联密钥
   ```
 - **切换 config（即插即用）:** `machines.yaml` 自包含（仅指针、无硬编码路径）, 把环境变量指向另一份
   即可，或用 `-c`:
-  `export BOX_RCLONE_BINDER_CONFIG=~/configs/fleet-prod.yaml` ↔ `~/configs/fleet-staging.yaml`。
-- **密钥:** Mode B, `machines.yaml`、`*.env`、`*.pem`、`*.key`、`rclone.conf` 全部 gitignore，永不
-  入库；清单里只放 `*_ref` 指针，真实值留在你的后端（`env`/`file`/`op`/`vault`/`aws-ssm`）。
+  `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-prod.yaml`，也可选择伴生仓中的另一份清单。
+- **密钥:** Mode B，`machines.yaml`、`*.env`、`*.pem`、`*.key`、`rclone.conf` 均保存在公开仓之外。
+  真实清单在私有伴生仓中做版本管理；清单里只放 `*_ref` 指针，真实值留在你的后端
+  （`env`/`file`/`op`/`vault`/`aws-ssm`）。
   `verify-config` 对任何内联密钥硬失败。
 
 ## 如何触发

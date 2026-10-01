@@ -186,7 +186,9 @@ def validate_host(host):
         raise ConfigError('broker_role must be master or slave')
     for key in ('host', 'ssh'):
         value = host.get(key, '')
-        if not isinstance(value, str) or value.startswith('-') or '\n' in value or '\r' in value:
+        if (not isinstance(value, str) or value.startswith('-')
+                or any(character in value for character in '\n\r\0')
+                or (key == 'host' and (not value or value != value.strip()))):
             raise ConfigError('invalid host or SSH target')
 
 

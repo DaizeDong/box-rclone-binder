@@ -4,14 +4,14 @@
 that lists your hosts, auth mode, and **pointers** to where secrets live. This file is the
 authoritative config contract (config-spec E1).
 
-Two artifacts make up the config:
+The public examples and private configuration have separate homes:
 
-| Artifact | Committed? | Role |
+| Artifact | Versioned location | Role |
 |---|---|---|
-| `config/machines.example.yaml` | yes (commit-safe) | the template you stamp from; ZERO secret values |
-| `machines.yaml` | **no, gitignored** | your live inventory; pointer-only secrets, safe to keep local |
-| `config/secrets.env.example` | yes (commit-safe) | example of the *.env you keep OUTSIDE the repo |
-| `*.env` / `*.pem` / `*.key` / `rclone.conf` | **no, gitignored** | the real secret material (Mode B) |
+| `config/machines.example.yaml` | public tool repository | generated synthetic template with no secret values |
+| `machines.yaml` | private companion repository | your real inventory and secret references |
+| `config/secrets.env.example` | public tool repository | generated synthetic environment example |
+| `*.env` / `*.pem` / `*.key` / `rclone.conf` | private storage or private backup repository | the real secret material (Mode B) |
 
 The cardinal invariant: **`machines.yaml` never holds a secret value, only a pointer.**
 `box-binder verify-config` hard-fails (and `config.py` refuses to load) if a literal secret appears.
@@ -23,12 +23,12 @@ The cardinal invariant: **`machines.yaml` never holds a secret value, only a poi
 1. `-c/--config <path>`, explicit flag (a file, or a dir holding `machines.yaml`).
 2. `$BOX_RCLONE_BINDER_CONFIG`, env var; a file path, or a dir holding `machines.yaml` (recommended; location-independent).
 3. `$BOX_RCLONE_BINDER_CONFIG_DIR`, accepted alias; a dir holding `machines.yaml`.
-4. `./machines.yaml`, cwd-relative (the historical default).
-5. `~/.box-rclone-binder-config/machines.yaml`, dotfile-in-home fallback (= `init_config.py` default).
-6. `~/.config/box-rclone-binder/machines.yaml`, XDG-style fallback (Linux/macOS).
+4. `machines.yaml` in the private companion resolved by `guards/tools/datadir.py`.
 
-If none resolves, the command exits `EXIT_CONFIG (3)` naming the path it looked for, it never
-crashes opaquely.
+A selected path is retained even when the file is missing; another inventory cannot silently
+replace it. Without a companion or explicit selection, initialization and verification exit
+`EXIT_CONFIG (3)` with setup guidance. A missing or broken guard resolver also fails explicitly.
+Keep real configurations in the private companion's Git history, outside the public tool tree.
 
 ## Schema, `machines.yaml` (E1)
 
@@ -123,24 +123,24 @@ reported as success. Policy skips carry a `reason` too: a log-only severity such
 
 ## Secrets, Mode B (E6)
 
-Secrets are **out-of-band**, never in git. The live `machines.yaml` carries only `*_ref` pointers;
+Secrets stay outside the public tool repository. The live `machines.yaml` carries only `*_ref` pointers;
 the real values live in your backend (`env`/`file`/`op`/`vault`/`aws-ssm`). The repo `.gitignore`
 blocks `machines.yaml`, `*.env`, `secrets.env`, `*.pem`, `*.key`, `*.p12`, `rclone.conf`,
 `credentials*`, `*.token`, and state files. `config.py` additionally scans for inline key/JWT/blob
 material and refuses to load if any is found. The skill never echoes a secret value (only presence).
+Private repositories may version the inventory, run records and credentials according to the
+owner's backup policy; the public repository must never contain them.
 
 ## First-time setup (E3), succeeds on the first try
 
 ```bash
 cd skills/box-rclone-binder
 
-# 1. Stamp a conformant machines.yaml from the commit-safe template (deterministic — E4):
-python scripts/init_config.py                 # -> ~/.box-rclone-binder-config/machines.yaml
-#   or:  python scripts/init_config.py --out ./machines.yaml
+# 1. Clone or initialize your private companion repository, then select its directory:
+export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion
+python scripts/init_config.py                # writes the selected companion's machines.yaml
 
-# 2. Edit it: set your hosts; keep secrets as *_ref pointers. Then point the skill at it
-#    (skip if you stamped to a default discovery path):
-export BOX_RCLONE_BINDER_CONFIG=~/.box-rclone-binder-config/machines.yaml
+# 2. Edit and version the inventory in that private repository; keep secrets as *_ref pointers.
 
 # 3. Put the real secret VALUES in your backend (env/op/vault/aws-ssm/file), then confirm:
 python scripts/box_binder.py verify-config --json   # schema + pointer-only + no inline secrets
@@ -153,10 +153,10 @@ python scripts/box_binder.py doctor        --json   # per-host rclone/ssh/system
 coupling, so a config is swappable with no other change. Switch by repointing the env var, or pass `-c`:
 
 ```bash
-export BOX_RCLONE_BINDER_CONFIG=~/configs/fleet-prod.yaml     # config A
-export BOX_RCLONE_BINDER_CONFIG=~/configs/fleet-staging.yaml  # config B — same skill, different fleet
+export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-prod.yaml     # config A
+export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-staging.yaml  # config B
 # or, per invocation:
-python scripts/box_binder.py healthcheck -c ~/configs/fleet-staging.yaml --json
+python scripts/box_binder.py healthcheck -c /path/to/private-companion/fleet-staging.yaml --json
 ```
 
 Verify the swap: `verify-config` against each path, then flip `$BOX_RCLONE_BINDER_CONFIG` between

@@ -69,22 +69,23 @@ auth mode, and **pointers** to where secrets live). Full contract:
 [CONFIG.md](skills/box-rclone-binder/CONFIG.md).
 
 - **Mount (discovery order):** `-c/--config <path>` → `$BOX_RCLONE_BINDER_CONFIG` →
-  `$BOX_RCLONE_BINDER_CONFIG_DIR` → `./machines.yaml` → `~/.box-rclone-binder-config/machines.yaml`
-  → `~/.config/box-rclone-binder/machines.yaml`. First that resolves wins; none = `EXIT_CONFIG (3)`
-  naming the path it looked for.
+  `$BOX_RCLONE_BINDER_CONFIG_DIR` → the private companion repository.
+  The selected path is retained even if missing; no selection = `EXIT_CONFIG (3)`
+  with private companion setup guidance.
 - **First time:**
   ```bash
   cd skills/box-rclone-binder
-  python scripts/init_config.py                       # stamp machines.yaml from the template (deterministic)
-  export BOX_RCLONE_BINDER_CONFIG=~/.box-rclone-binder-config/machines.yaml  # or pass --out / -c
+  export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion  # an initialized private Git repository
+  python scripts/init_config.py                       # stamp its machines.yaml from the generated template
   # edit hosts, keep secrets as *_ref pointers, then:
   python scripts/box_binder.py verify-config --json   # doctor: schema + pointer-only + no inline secrets
   ```
 - **Switch configs (hot-swap):** `machines.yaml` is self-contained (pointer-only, no hardcoded
   paths), repoint the env var or pass `-c`:
-  `export BOX_RCLONE_BINDER_CONFIG=~/configs/fleet-prod.yaml` ↔ `~/configs/fleet-staging.yaml`.
-- **Secrets:** Mode B, `machines.yaml`, `*.env`, `*.pem`, `*.key`, `rclone.conf` are gitignored and
-  never enter git; only `*_ref` pointers live in the inventory, real values stay in your backend
+  `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-prod.yaml` or a staging inventory in that companion.
+- **Secrets:** Mode B, `machines.yaml`, `*.env`, `*.pem`, `*.key`, `rclone.conf` stay outside the
+  public repository. Version real inventories in the private companion; only `*_ref` pointers
+  live in the inventory, while secret values stay in your backend
   (`env`/`file`/`op`/`vault`/`aws-ssm`). `verify-config` hard-fails on any inline secret.
 
 ## How to invoke

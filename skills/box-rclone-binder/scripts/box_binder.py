@@ -33,18 +33,15 @@ CONFIG_BASENAME = "machines.yaml"
 
 
 def discover_config_path(explicit=None):
-    """Resolve the machines.yaml path (config-spec E2). First hit wins:
+    """Resolve the machines.yaml path (config-spec E2), in priority order:
 
       1. explicit -c/--config (file, or dir holding machines.yaml)
       2. $BOX_RCLONE_BINDER_CONFIG       (file, or dir holding machines.yaml)
       3. $BOX_RCLONE_BINDER_CONFIG_DIR   (dir holding machines.yaml)
-      4. ./machines.yaml                 (cwd-relative; the historical default)
-      5. ~/.box-rclone-binder-config/machines.yaml
-      6. ~/.config/box-rclone-binder/machines.yaml
+      4. machines.yaml in the private companion resolved by guards/tools/datadir.py
 
-    Existence-checked candidates (4-6) only win if present; the cwd default is returned as the
-    last resort even when absent, so the 'config not found' error still names a concrete path.
-    An explicit flag value is honored verbatim (a missing path then surfaces EXIT_CONFIG).
+    A selected path remains selected when its file is missing. Absence must not select an
+    unrelated inventory. Without an override or companion, report an initialization error.
     """
     def as_file(p):
         p = os.path.abspath(os.path.expanduser(p))
@@ -58,29 +55,13 @@ def discover_config_path(explicit=None):
     d = os.environ.get(CONFIG_ENV_DIR)
     if d:
         return os.path.join(os.path.abspath(os.path.expanduser(d)), CONFIG_BASENAME)
-    # THE SIBLING COMPANION, ahead of the cwd probe and ahead of the dotfiles.
-    #
-    # `./machines.yaml` was step 4 AND the named last resort, so running any command from this
-    # repository made the answer <repo>/machines.yaml. That file holds real hostnames, Box remote
-    # paths and secret references, and .dataclass.json already declares it `data_sealed` because it
-    # was there once. The last-resort behaviour is the worse half: with nothing found, the error
-    # named an in-repo path, so an operator following the message literally recreated the sealed
-    # file inside the public work tree.
     companion = _companion_config_path()
-    candidates = [
-        c for c in (
-            companion,
-            os.path.abspath(CONFIG_BASENAME),
-            os.path.expanduser(os.path.join("~", ".box-rclone-binder-config", CONFIG_BASENAME)),
-            os.path.expanduser(os.path.join("~", ".config", "box-rclone-binder", CONFIG_BASENAME)),
-        ) if c
-    ]
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    # The named last resort is the COMPANION when one resolves, so the "not found" message points
-    # at where the file belongs rather than at the one place it must never be created.
-    return companion or candidates[0]
+    if companion is None:
+        raise cfgmod.ConfigError(
+            "No private box-rclone-binder companion is configured. Clone or initialize a "
+            "private companion repository, set BOX_RCLONE_BINDER_CONFIG_DIR to its directory, "
+            "then run scripts/init_config.py. Use -c to select another private inventory.")
+    return companion
 
 
 def _companion_config_path():
@@ -99,20 +80,31 @@ def _companion_config_path():
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     p = os.path.join(repo, "guards", "tools", "datadir.py")
     if not os.path.isfile(p):
-        raise RuntimeError(
+        raise cfgmod.ConfigError(
             "guards/tools/datadir.py is missing, so the companion resolver never ran. "
             "The guards submodule is not checked out: run `git submodule update --init`. "
             "This is not the same as having no companion configured, and must not be read as one.")
     import importlib.util
     spec = importlib.util.spec_from_file_location("_dd_for_box", p)
     if spec is None or spec.loader is None:
-        return None
+        raise cfgmod.ConfigError(
+            "Cannot load guards/tools/datadir.py. Restore the guards submodule before "
+            "resolving a private companion.")
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    try:
+        spec.loader.exec_module(mod)
+    except (ImportError, OSError) as exc:
+        raise cfgmod.ConfigError(
+            "The guards companion resolver could not load. Restore the guards submodule "
+            "and its dependencies.") from exc
     fn = getattr(mod, "resolve_companion_root", None)
-    if fn is None:
-        return None
-    root = fn("box-rclone-binder")
+    if not callable(fn):
+        raise cfgmod.ConfigError(
+            "The guards resolver lacks resolve_companion_root. Update the guards submodule.")
+    try:
+        root = fn("box-rclone-binder")
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise cfgmod.ConfigError("Private companion resolution failed: %s" % exc) from exc
     return os.path.join(str(root), CONFIG_BASENAME) if root else None
 
 
@@ -271,9 +263,9 @@ def build_parser():
     p = argparse.ArgumentParser(prog="box-binder", description="Bind one Box drive across many servers via rclone.")
     p.add_argument("command", choices=list(COMMANDS))
     p.add_argument("-c", "--config", default=None,
-                   help="path to machines.yaml (file or dir). If omitted, resolved via "
-                        "$BOX_RCLONE_BINDER_CONFIG / $BOX_RCLONE_BINDER_CONFIG_DIR / ./machines.yaml "
-                        "/ ~/.box-rclone-binder-config/ / ~/.config/box-rclone-binder/")
+                    help="path to machines.yaml (file or dir). If omitted, resolved via "
+                         "$BOX_RCLONE_BINDER_CONFIG / $BOX_RCLONE_BINDER_CONFIG_DIR / "
+                         "the private companion repository")
     p.add_argument("-H", "--host", action="append", default=[])
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--json", action="store_true")
@@ -286,8 +278,9 @@ def build_parser():
 
 def run(argv=None, factory=_default_factory):
     args = build_parser().parse_args(argv)
-    cfg_path = discover_config_path(args.config)
+    cfg_path = None
     try:
+        cfg_path = discover_config_path(args.config)
         cfg = cfgmod.load(cfg_path)
     except FileNotFoundError:
         return _emit(args, EXIT_CONFIG, {"command": args.command, "error": "config not found: %s" % cfg_path, "exit_code": EXIT_CONFIG})

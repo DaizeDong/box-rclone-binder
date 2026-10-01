@@ -132,6 +132,7 @@ def main(argv=None):
         host = read_private_json(args.host_file)
         report['auth_mode'] = host.get('auth_mode', 'jwt')
         outcome = execute(host, args.action, args.timeout)
+        report['host'] = host['host']
         report.update(outcome or {'ok': True})
     except Exception as exc:
         # Native tools and token endpoints can echo credentials; report only the error class.
