@@ -1,6 +1,6 @@
 ---
 name: box-rclone-binder
-description: Bind one Box drive across multiple servers via rclone with non-expiring server auth; idempotent deploy, health-check self-heal, cron, and Discord alerts.
+description: Configure one Box drive across Linux servers via rclone, deploy checked systemd runtimes, validate access, and refresh CCG or single-master OAuth credentials.
 ---
 
 # box-rclone-binder
@@ -13,19 +13,21 @@ description: Bind one Box drive across multiple servers via rclone with non-expi
 ## When to use / when to stop
 
 - **Use** when you must bind ONE Box account to TWO OR MORE servers via rclone and keep it alive
-  unattended (auto-refresh, expiry self-heal, multi-host consistency).
+  with mode-specific refresh timers and consistent access. Failed refreshes remain visible and
+  may require operator retry or reauthorization.
 - **Single server only?** Plain `rclone config` is enough, you do not need this.
 - **Not Box, or not rclone?** Out of scope.
 - **Generic cron/systemd templating?** Route elsewhere; this owns the Box+rclone seam specifically.
 
 ## The one decision that defines the tool: auth mode
 
-Pick with `box-binder doctor`, then set `auth_mode` in `machines.yaml`:
+Use `box-binder doctor` for tool and SSH discovery. Choose the auth mode using the requirements
+below, then set `auth_mode` in `machines.yaml`. Doctor does not test Box authorization or CCG renewal:
 
 | mode | refresh_token? | when | how it stays alive |
 |---|---|---|---|
 | **jwt** (default) | none | enterprise Box + Admin authorize | rclone `tokenRenewer` re-mints locally on each host |
-| **ccg-native** | none | enterprise + rclone proves CCG works | rclone renews natively |
+| **ccg-native** | none | enterprise + controlled live expiry test proves renewal | rclone renews natively |
 | **ccg-mint** | none | enterprise, CCG-native unproven | external mint timer (<60 min) re-mints access token |
 | **oauth-broker** | one master only | personal Box, no Admin | single flock'd master refreshes, distributes access-only blobs |
 
@@ -35,11 +37,12 @@ access tokens -> naturally multi-host consistent, no rotation to fight. Read
 
 ## Workflow (thin)
 
-1. `box-binder doctor -c machines.yaml`, probe rclone version / ssh / systemd.
+1. Set `BOX_RCLONE_BINDER_CONFIG_DIR` to the private companion repository, then run
+   `box-binder doctor` to probe rclone version / ssh / systemd.
 2. `box-binder verify-config`, schema + secret-pointer-only + NO inline secrets (hard-fails otherwise).
-3. `box-binder deploy [--dry-run]`, idempotently converge each host (atomic writes, systemd timer).
-4. `box-binder healthcheck`, read-only `rclone lsd` probe + cross-host consistency; classify + self-heal.
-5. `box-binder refresh`, jwt/ccg-native = validation no-op; ccg-mint = re-mint; oauth-broker = master refresh.
+3. `box-binder deploy --dry-run`, inspect complete runtime and required credential paths; `deploy` installs them and checks timer state.
+4. `box-binder healthcheck`, run the installed runtime's read-only `rclone lsd` validation and report per-host failures.
+5. `box-binder plan-refresh` plans without contacting hosts; `refresh` executes validation, CCG mint, or master refresh and access-only distribution.
 
 All commands take `--json` (machine verdict) and `--dry-run`. Load the matching `reference/<shard>.md`
 for the step you are on, never all at once.
@@ -55,21 +58,20 @@ for the step you are on, never all at once.
 ## Hard rules (never violate)
 
 1. **No rotating refresh_token on >1 host.** `box-binder` hard-rejects it (anti-pattern guard).
-2. **Secrets are referenced, never stored.** `machines.yaml` holds pointers (`*_ref`); values come
-   from a secret backend at runtime. Inline secret values fail `verify-config`. `*.env`/`config.json`/
+2. **Secrets stay outside the public repository.** `machines.yaml` holds pointers (`*_ref`); execution
+   resolves env/file sources and installs protected credentials on the host. `*.env`/`config.json`/
    `*.pem`/`*.conf` are gitignored. Never `-vv` / `rclone config dump` to a log (leaks tokens).
 3. **Health check is read-only.** `rclone lsd` with timeouts, never `rclone about` (Box unsupported),
    never write/delete LIVE data.
 4. **Idempotent + atomic.** Converge by sha256 diff; write temp on the SAME volume -> fsync -> rename.
-5. **Self-heal is bounded.** Retry only transient (429/network); `invalid_grant` is a broken chain ->
-   CRITICAL, never blind-retry, never delete-and-recreate the remote.
+5. **Failures remain visible.** No hidden in-command retry; use `--host` for failed hosts. Broker
+   slave retries reuse the master's valid token. `invalid_grant` requires reauthorization.
 
 ## Acceptance gate (program-adjudicable)
 
-`python tests/run_gate.py` runs 10 signals (refresh logic, idempotency, multi-host consistency,
-config validation, dry-run no-op, secret hygiene, probe classification, anti-pattern guard, atomic
-write, CLI contract) with NO real Box credentials. All pass = green. Real end-to-end binding is the
-single remaining gap (see `reference/runbook.md` one-time authorization).
+`python tests/run_gate.py` runs the original 10 signals; `python -m pytest tests` also exercises
+the runtime, deployment failures, token transport and broker distribution. Synthetic passes do
+not prove real authorization, token expiry, timer triggering, or host restart behavior.
 
 ## Progressive loading
 

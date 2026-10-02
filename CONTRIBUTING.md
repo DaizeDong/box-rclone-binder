@@ -12,7 +12,7 @@ Thanks for your interest in box-rclone-binder.
    cd skills/box-rclone-binder && python tests/run_gate.py
    ```
    All 10 signals must pass with no real Box credentials. Add a signal when you add behaviour.
-3. **Keep secrets referenced, health read-only, writes atomic, self-heal bounded** (see
+3. **Keep secrets referenced, health read-only, writes atomic, and recovery explicit** (see
    `PHILOSOPHY.md`). Changes that violate these are out of scope by design.
 4. **Conform to Skill Repo Spec v1.** Keep the four version sources (plugin.json / both READMEs'
    roadmap badge / ROADMAP / CHANGELOG) in lock-step. Bump CHANGELOG on every change.

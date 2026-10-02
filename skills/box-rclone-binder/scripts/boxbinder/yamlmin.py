@@ -6,6 +6,8 @@ no anchors, flow collections, multi-doc, or block scalars.
 """
 from __future__ import annotations
 
+import json
+
 
 def _strip_comment(s: str) -> str:
     out, q = [], None
@@ -28,8 +30,14 @@ def _scalar(tok: str):
     t = tok.strip()
     if t == "" or t == "~" or t.lower() == "null":
         return None
-    if len(t) >= 2 and t[0] == t[-1] and t[0] in ('"', "'"):
-        return t[1:-1]
+    if t.startswith('"'):
+        return json.loads(t)
+    if t.startswith("'"):
+        if len(t) < 2 or not t.endswith("'"):
+            raise ValueError('unterminated quoted scalar')
+        return t[1:-1].replace("''", "'")
+    if t[:1] in ('{', '[', '&', '*', '!', '|', '>'):
+        raise ValueError('unsupported YAML scalar or collection')
     low = t.lower()
     if low in ("true", "yes"):
         return True
@@ -51,11 +59,22 @@ def _indent(line: str) -> int:
 
 
 def load(text: str):
+    if text.lstrip().startswith(('{', '[')):
+        def unique_mapping(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError('duplicate mapping key')
+                result[key] = value
+            return result
+        return json.loads(text, object_pairs_hook=unique_mapping)
     raw = []
     for ln in text.splitlines():
         c = _strip_comment(ln)
         if c.strip() == "":
             continue
+        if c.strip() in ('---', '...') or '\t' in ln[:len(ln) - len(ln.lstrip())]:
+            raise ValueError('unsupported YAML document marker or indentation')
         raw.append((_indent(c), c.strip(), c))
     pos = [0]
 
@@ -93,6 +112,8 @@ def load(text: str):
                 while pos[0] < len(raw) and raw[pos[0]][0] > indent and not raw[pos[0]][1].startswith("- "):
                     ci, b2, _ = raw[pos[0]]
                     kk, vv = _split_kv(b2)
+                    if kk in d:
+                        raise ValueError('duplicate mapping key')
                     pos[0] += 1
                     if vv == "":
                         d[kk] = parse_block(ci + 1)
@@ -110,6 +131,8 @@ def load(text: str):
             if cur_indent != indent or body.startswith("- "):
                 break
             k, v = _split_kv(body)
+            if k in d:
+                raise ValueError('duplicate mapping key')
             pos[0] += 1
             if v == "":
                 child = parse_block(indent + 1)
@@ -128,11 +151,19 @@ def load(text: str):
             elif ch in ('"', "'"):
                 q = ch
             elif ch == ":":
-                return s[:i].strip(), s[i + 1:].strip()
-        return s.strip(), ""
+                key = s[:i].strip()
+                if key.startswith(('"', "'")):
+                    key = _scalar(key)
+                if not isinstance(key, str) or not key or key == '<<':
+                    raise ValueError('unsupported mapping key')
+                return key, s[i + 1:].strip()
+        raise ValueError('mapping entry requires a colon')
 
     def _is_quoted_scalar(s):
         s = s.strip()
         return len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'")
 
-    return parse_block(0)
+    result = parse_block(0)
+    if pos[0] != len(raw):
+        raise ValueError('unsupported indentation or trailing YAML content')
+    return result
