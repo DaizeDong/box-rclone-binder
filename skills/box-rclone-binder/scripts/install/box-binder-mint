@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+CONFIG="${BOX_BINDER_HOST_FILE:-/etc/box-binder/host.json}"
+exec python3 /opt/box-binder/box_runtime.py refresh --host-file "$CONFIG"

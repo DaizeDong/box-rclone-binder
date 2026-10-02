@@ -25,7 +25,8 @@ forever; fix the auth model and the deploy becomes boring.
 - **Decision it produced:** a 10-signal, program-adjudicable acceptance gate that runs with **no real
   Box credentials**, refresh logic, idempotency, multi-host invariants, config validation, dry-run
   no-op, secret hygiene, error classification, anti-pattern rejection, atomic writes, CLI contract.
-  Green gate is the bar; the only thing left is the human one-time authorization.
+  A green offline gate establishes those synthetic checks. Authorization, real transport, timer
+  firing, restart persistence and token-expiry behavior still need separate evidence.
 
 ## P3, Secrets are referenced, never possessed
 
@@ -43,5 +44,7 @@ forever; fix the auth model and the deploy becomes boring.
 - **Root cause:** non-idempotent, non-atomic operations drift hosts apart and corrupt state on
   partial failure; unbounded self-heal amplifies outages.
 - **Decision it produced:** sha256 diff -> write only what changed; temp on the same volume ->
-  fsync -> rename; cron marker-block replaced whole; self-heal retries only transient errors and
-  treats `invalid_grant` as a stop-and-alert broken chain, never delete-and-recreate the remote.
+  fsync -> rename; checked systemd timer installation; bounded access validation and explicit
+  per-host refresh results. Transient failures require a manual retry or the next scheduled run.
+  `invalid_grant` stops the command for manual reauthorization. Automatic alert dispatch, cron
+  installation and in-command backoff remain future work.

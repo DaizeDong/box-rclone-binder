@@ -1,8 +1,8 @@
 """box-binder — bind one Box drive across many servers via rclone, safely and idempotently.
 
 Stdlib-only package. No third-party deps required (optional PyYAML used if present, else a
-bundled minimal YAML subset parser). NEVER imports, logs, or returns secret values — only
-*references* to where secrets live.
+bundled minimal YAML subset parser). Operator configuration contains secret references;
+runtime credential values travel through protected files, input streams and environment.
 """
 
 __version__ = "0.1.0"

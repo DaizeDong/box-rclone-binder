@@ -10,9 +10,7 @@ Discovery order (first hit wins; same as box_binder.discover_config_path):
   1. -c/--config <path>                (file, or dir holding machines.yaml)
   2. $BOX_RCLONE_BINDER_CONFIG         (file, or dir holding machines.yaml)
   3. $BOX_RCLONE_BINDER_CONFIG_DIR     (dir holding machines.yaml)
-  4. ./machines.yaml
-  5. ~/.box-rclone-binder-config/machines.yaml
-  6. ~/.config/box-rclone-binder/machines.yaml
+  4. machines.yaml in the private companion repository
 
 Usage:
   python scripts/verify_config.py [-c <path>] [--json]
@@ -40,14 +38,14 @@ def main(argv=None):
         description="Resolve and validate a box-rclone-binder machines.yaml (E5 hot-swap aware).")
     ap.add_argument("-c", "--config", default=None,
                     help="path to machines.yaml (file or dir). If omitted, resolved via "
-                         "$%s / $%s / ./machines.yaml / ~/.box-rclone-binder-config/ / "
-                         "~/.config/box-rclone-binder/" % (cli.CONFIG_ENV, cli.CONFIG_ENV_DIR))
+                         "$%s / $%s / the private companion repository" %
+                         (cli.CONFIG_ENV, cli.CONFIG_ENV_DIR))
     ap.add_argument("--json", action="store_true", help="machine-readable verdict")
     a = ap.parse_args(argv)
 
-    path = cli.discover_config_path(a.config)  # absolute; dir -> dir/machines.yaml
-
+    path = None
     try:
+        path = cli.discover_config_path(a.config)  # absolute; dir -> dir/machines.yaml
         cfg = cfgmod.load(path)
     except FileNotFoundError:
         return _emit(a.json, EXIT_CONFIG,
@@ -82,7 +80,7 @@ def _emit(as_json, code, result):
                   % ", ".join(result["missing_refs"]))
         print("  schema valid, pointer-only secrets, no inline secret values.")
     else:
-        print("NOT READY: %s" % result["config_path"])
+        print("NOT READY: %s" % (result["config_path"] or "private companion is not configured"))
         print("  ERROR: %s" % result.get("error", "invalid config"))
     return code
 

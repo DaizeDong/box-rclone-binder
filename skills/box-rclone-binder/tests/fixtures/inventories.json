@@ -1,0 +1,116 @@
+{
+  "recipe": "box-binder-synthetic-v1",
+  "synthetic_origin": true,
+  "inventories": {
+    "jwt": {
+      "version": 1,
+      "hosts": [
+        {
+          "host": "node1.example.com",
+          "remote_name": "box",
+          "auth_mode": "jwt",
+          "config_dir": "/etc/box-binder",
+          "root_folder_id": "0"
+        },
+        {
+          "host": "node2.example.com",
+          "remote_name": "box",
+          "auth_mode": "jwt",
+          "config_dir": "/etc/box-binder",
+          "root_folder_id": "0"
+        }
+      ],
+      "secrets": {
+        "source": "env",
+        "jwt_config_ref": "BOX_TEST_JWT",
+        "client_id_ref": "BOX_TEST_ID",
+        "client_secret_ref": "BOX_TEST_SECRET",
+        "box_subject_id_ref": "BOX_TEST_SUBJECT",
+        "broker_state_ref": "BOX_TEST_STATE"
+      }
+    },
+    "ccg-native": {
+      "version": 1,
+      "hosts": [
+        {
+          "host": "node1.example.com",
+          "remote_name": "box",
+          "auth_mode": "ccg-native",
+          "config_dir": "/etc/box-binder",
+          "root_folder_id": "0"
+        },
+        {
+          "host": "node2.example.com",
+          "remote_name": "box",
+          "auth_mode": "ccg-native",
+          "config_dir": "/etc/box-binder",
+          "root_folder_id": "0"
+        }
+      ],
+      "secrets": {
+        "source": "env",
+        "jwt_config_ref": "BOX_TEST_JWT",
+        "client_id_ref": "BOX_TEST_ID",
+        "client_secret_ref": "BOX_TEST_SECRET",
+        "box_subject_id_ref": "BOX_TEST_SUBJECT",
+        "broker_state_ref": "BOX_TEST_STATE"
+      }
+    },
+    "ccg-mint": {
+      "version": 1,
+      "hosts": [
+        {
+          "host": "node1.example.com",
+          "remote_name": "box",
+          "auth_mode": "ccg-mint",
+          "config_dir": "/etc/box-binder",
+          "root_folder_id": "0"
+        },
+        {
+          "host": "node2.example.com",
+          "remote_name": "box",
+          "auth_mode": "ccg-mint",
+          "config_dir": "/etc/box-binder",
+          "root_folder_id": "0"
+        }
+      ],
+      "secrets": {
+        "source": "env",
+        "jwt_config_ref": "BOX_TEST_JWT",
+        "client_id_ref": "BOX_TEST_ID",
+        "client_secret_ref": "BOX_TEST_SECRET",
+        "box_subject_id_ref": "BOX_TEST_SUBJECT",
+        "broker_state_ref": "BOX_TEST_STATE"
+      }
+    },
+    "oauth-broker": {
+      "version": 1,
+      "hosts": [
+        {
+          "host": "node1.example.com",
+          "remote_name": "box",
+          "auth_mode": "oauth-broker",
+          "config_dir": "/etc/box-binder",
+          "root_folder_id": "0",
+          "broker_role": "master"
+        },
+        {
+          "host": "node2.example.com",
+          "remote_name": "box",
+          "auth_mode": "oauth-broker",
+          "config_dir": "/etc/box-binder",
+          "root_folder_id": "0",
+          "broker_role": "slave"
+        }
+      ],
+      "secrets": {
+        "source": "env",
+        "jwt_config_ref": "BOX_TEST_JWT",
+        "client_id_ref": "BOX_TEST_ID",
+        "client_secret_ref": "BOX_TEST_SECRET",
+        "box_subject_id_ref": "BOX_TEST_SUBJECT",
+        "broker_state_ref": "BOX_TEST_STATE"
+      }
+    }
+  }
+}

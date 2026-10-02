@@ -1,25 +1,35 @@
 {
   "_comment": [
-    "Skill Repo Spec v1 s9 -- every path in this repo belongs to exactly one class.",
-    "TOOL    = code, SKILL.md, docs, reference data, and metrics ABOUT THE SKILL. Public.",
-    "FIXTURE = LIFELIKE test data: rows that look like real records, whose real version is",
-    "          sitting right there in the operator's life and is structurally indistinguishable.",
-    "          Must be produced by tools/make_fixtures.py -- a real record cannot be regenerated,",
-    "          so pasting one in fails at commit. (A self-evidently fake canary or an Acme mock is",
-    "          NOT lifelike and does not need a generator; the risk it guards against is a person",
-    "          reaching for a convenient REAL example, and there is no temptation to reach for a",
-    "          real value that would look obviously wrong next to FAKE_CANARY_XYZ.)",
-    "DATA    = anything a REAL RUN produced. Never git-tracked. Lives in the private companion",
-    "          config, resolved at runtime by tools/datadir.py. This repo ships only the schema.",
-    "data_sealed = a path that HELD real data, was purged, and must stay dead.",
-    "",
-    "Enforced by tools/data_boundary.py in .githooks and in CI."
+    "Skill Repo Spec v1 s9: every path is TOOL, FIXTURE or DATA.",
+    "TOOL = shipped code, instructions, reference material and metrics about the skill.",
+    "FIXTURE = synthetic examples or test records reproduced by tools/make_fixtures.py.",
+    "DATA = real inventories and runtime records, versioned in the PRIVATE companion repository.",
+    "Real DATA must never exist in the PUBLIC tool tree, whether tracked or ignored.",
+    "data_sealed = a historical DATA location that must remain absent.",
+    "Enforced by guards/tools/data_boundary.py through repository hooks and CI."
   ],
-  "_audited": "2026-07-31 RE-AUDIT (supersedes the 2026-07-13 sweep, which recorded an empty declaration for this repo). The earlier sweep asked only whether shipped code appends to a TRACKED file here. That question is too narrow: it clears every path that is gitignored, and .gitignore is advisory -- `git add -f` walks straight through it, which is the whole reason declarations exist. This pass asked instead whether shipped code or shipped docs can put REAL-RUN OUTPUT at a repo-relative path at all. ANSWER: YES for real config, and the landing site is repo-relative BY DESIGN. discover_config_path() step 4 is ./machines.yaml, cwd-relative, documented as the historical default, and it is returned as the last resort even when absent -- so running any command from this repo makes the repo root the file the tool asks for, and the path an init would fill. machines.yaml carries real machine names, real Box remote paths and secret references. The runtime STATE (broker token blob, per-slave bind state) resolves from paths inside machines.yaml and lands outside the repo. Declared data_sealed, not data: the schema already ships at skills/box-rclone-binder/config/machines.example.yaml, and a second copy at the root would be a duplicate that drifts, which is worse than none.",
+  "_audited": "2026-09-29 source audit: the controller reads inventories and prints results; no local runtime journal is shipped. Default discovery and initialization use the selected environment path or private companion, with no cwd or unversioned directory fallback. Initialization refuses destinations inside the tool tree. Real inventories and recorded results belong in the versioned private companion; remote token/bind state uses each host configuration and is not a tool-tree output. The historical root machines.yaml stays sealed. The empty data list records that there is no default repository-relative runtime output; it does not exempt caller-selected destinations from the private-data rule.",
   "data": [],
   "data_sealed": [
     "machines.yaml"
   ],
-  "fixture": [],
-  "_data_home": "~/.box-rclone-binder-config/data/   (override with $BOX_RCLONE_BINDER_DATA_DIR). If this skill ever needs to record real-run output, it goes THERE -- never back into this repo."
+  "fixture": [
+    "skills/box-rclone-binder/tests/fixtures/inventories.json",
+    "skills/box-rclone-binder/tests/test_receipt_identity.py",
+    "skills/box-rclone-binder/tests/test_config_discovery.py",
+    "skills/box-rclone-binder/config/machines.example.yaml",
+    "skills/box-rclone-binder/config/secrets.env.example",
+    "skills/box-rclone-binder/tests/test_schema_boundary.py",
+    "skills/box-rclone-binder/tests/test_health_observations.py",
+    "skills/box-rclone-binder/tests/fixtures/healthcheck.json",
+    "skills/box-rclone-binder/tests/test_review_v4.py",
+    "skills/box-rclone-binder/tests/test_review_v5.py",
+    "skills/box-rclone-binder/tests/test_review_v7.py",
+    "skills/box-rclone-binder/tests/test_review_v9.py",
+    "skills/box-rclone-binder/tests/test_review_v10.py",
+    "skills/box-rclone-binder/tests/test_review_v11.py",
+    "skills/box-rclone-binder/tests/test_review_v14.py",
+    "skills/box-rclone-binder/tests/test_review_v15.py"
+  ],
+  "_data_home": "The private companion Git repository, resolved by guards/tools/datadir.py or explicitly selected with BOX_RCLONE_BINDER_CONFIG[_DIR]. Version real records there; there is no public-tree fallback."
 }

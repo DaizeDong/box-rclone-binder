@@ -10,9 +10,11 @@ Usage (identical to the real script):
 """
 import os
 import runpy
+import sys
 
 _REAL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      "..", "skills", "box-rclone-binder", "scripts", "init_config.py")
 
 if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.abspath(_REAL)))
     runpy.run_path(os.path.abspath(_REAL), run_name="__main__")

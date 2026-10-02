@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import warnings
 
 
 class CrossVolumeError(RuntimeError):
@@ -40,7 +41,8 @@ def atomic_write(dest_path: str, data, mode: int = 0o600) -> str:
     """Write `data` (str or bytes) to dest_path atomically. Returns dest_path.
 
     The temp file is created in the destination directory so the final rename stays on one
-    volume. fsync the file and the directory so the rename survives a crash.
+    volume. POSIX syncs both file and directory; synchronization errors propagate.
+    Windows syncs the file and reports that directory-entry crash durability is unproven.
     """
     if isinstance(data, str):
         data = data.encode("utf-8")
@@ -59,15 +61,17 @@ def atomic_write(dest_path: str, data, mode: int = 0o600) -> str:
         except OSError:
             pass  # chmod is a no-op / unsupported on some filesystems (e.g. Windows)
         os.replace(tmp, dest_path)
-        # fsync the directory so the rename is durable.
-        try:
+        # Windows CRT cannot open a directory for fsync; do not claim that guarantee.
+        if os.name == "nt":
+            warnings.warn(
+                "Windows directory fsync is unavailable; rename crash durability is not established",
+                RuntimeWarning, stacklevel=2)
+        else:
             dfd = os.open(d, os.O_RDONLY)
             try:
                 os.fsync(dfd)
             finally:
                 os.close(dfd)
-        except OSError:
-            pass  # directory fsync unsupported on Windows
         return dest_path
     finally:
         if os.path.exists(tmp):

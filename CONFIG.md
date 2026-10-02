@@ -17,9 +17,10 @@ canonical doc is the source of truth.
 - **Schema:** `machines.yaml`, top-level `schema_version` (the `version` field; currently `1`) +
   `defaults` / `secrets` / `hosts[]` / `alerts`. Full field tables are in the canonical doc.
 - **Discovery env var:** `$BOX_RCLONE_BINDER_CONFIG` (a file, or a dir holding `machines.yaml`),
-  then `$BOX_RCLONE_BINDER_CONFIG_DIR`, then `./machines.yaml`, then
-  `~/.box-rclone-binder-config/machines.yaml`, then `~/.config/box-rclone-binder/machines.yaml`.
-- **First-time (deterministic stamp):** `python scripts/init_config.py --out <dir>` writes a
+  then `$BOX_RCLONE_BINDER_CONFIG_DIR`, then the private companion resolved by
+  `guards/tools/datadir.py`. A missing selected inventory is a configuration error.
+- **First-time (deterministic stamp):** set the env var to your private companion, then
+  `python scripts/init_config.py` writes a
   `machines.yaml` byte-identical to the committed `machines.example.yaml` template.
 - **Verify / hot-swap:** `python scripts/verify_config.py` resolves + validates the config the env
   var points at and prints the resolved path, so switching `$BOX_RCLONE_BINDER_CONFIG` between two
@@ -28,3 +29,5 @@ canonical doc is the source of truth.
 - **Secrets, Mode B:** the live `machines.yaml` carries only `*_ref` pointers; real values live in
   your backend (`env`/`file`/`op`/`vault`/`aws-ssm`). `.gitignore` blocks `secrets/`, `machines.yaml`,
   `*.env`, `*.pem`, `*.key`, `rclone.conf`, etc., and the loader hard-fails on any inline secret.
+- **History:** keep the real inventory and run records versioned in the private companion
+  repository. The public tool repository contains only generated examples.

@@ -1,0 +1,67 @@
+{
+  "recipe": "box-binder-synthetic-v1",
+  "synthetic_origin": true,
+  "healthcheck": {
+    "command": "healthcheck",
+    "hosts": [
+      {
+        "auth_mode": "jwt",
+        "root_folder_id": "0",
+        "box_sub_type": "enterprise",
+        "remote_name": "box",
+        "host": "node1.example.com",
+        "healthy": true,
+        "category": "ok",
+        "action": "none",
+        "has_refresh_token": false,
+        "observation_scope": "runtime_host_configuration"
+      }
+    ],
+    "consistency": {
+      "consistent": null,
+      "divergences": [],
+      "fields": {
+        "auth_mode": {
+          "jwt": [
+            "node1.example.com"
+          ]
+        },
+        "root_folder_id": {
+          "0": [
+            "node1.example.com"
+          ]
+        },
+        "box_sub_type": {
+          "enterprise": [
+            "node1.example.com"
+          ]
+        },
+        "remote_name": {
+          "box": [
+            "node1.example.com"
+          ]
+        },
+        "rclone_version": {}
+      },
+      "scope": "runtime_host_configuration",
+      "unobserved_fields": [
+        "rclone_version"
+      ]
+    },
+    "refresh_token_invariant": {
+      "ok": true,
+      "holders": [],
+      "modes": [
+        "jwt"
+      ],
+      "scope": "runtime_auth_configuration",
+      "unobserved_hosts": []
+    },
+    "summary": {
+      "total": 1,
+      "unhealthy": 0,
+      "divergences": 0
+    },
+    "exit_code": 0
+  }
+}

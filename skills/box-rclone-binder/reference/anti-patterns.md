@@ -6,10 +6,12 @@
 2. **OAuth for unattended multi-host.** 60-day activity window + browser reconnect is not
    automatable. Default to jwt/ccg.
 3. **Assuming `--box-client-credentials` just works.** It may omit `box_subject_id` -> HTTP 400.
-   Prove CCG with `doctor`, else use ccg-mint.
+   `doctor` discovers tools and SSH only. Select native CCG after a controlled live test
+   proves authorization and renewal across token expiry; otherwise use ccg-mint.
 4. **`rclone about box:` for health.** Box does not support it. Use `lsd`/`lsjson` with timeouts.
 5. **Token/secret on argv or in a connection string.** Leaks via `ps`/history/argv. Use `@file`
-   or env-var injection (`mint.sh` and the broker both do `token=@file`).
+   for protected credential input, or the runtime's child-only environment. The runtime reads
+   protected access state and builds rclone environment values; it does not use `token=@file`.
 6. **Old rclone + JWT on a >1h upload.** Second-cycle re-mint could fatal (#7214). Pin a recent
    rclone (>= #8313 fix) and cover >2 token lifetimes in health probing.
 7. **Cross-fs `rename`, or rename without fsync.** Non-atomic / can leave half a JSON on power
@@ -19,5 +21,7 @@
 9. **Missing `--ask-password=false`** on an encrypted conf -> silent hang waiting for input.
 10. **Writing/deleting LIVE Box content to "test".** Binding + health are read-only probes only.
 11. **Self-heal that deletes and recreates the remote.** Amplifies the blast radius. Re-mint ->
-    re-probe -> INFO/CRITICAL instead.
-12. **All hosts probing/refreshing at the same instant** -> 429. Add jitter + backoff.
+    re-probe only through an explicit operator retry. Automatic recovery/backoff and alert
+    dispatch are not implemented; the separately callable alert helper reports its own outcome.
+12. **All hosts probing/refreshing at the same instant** -> 429. Operators must stagger schedules
+    and space retries; this runtime does not add automatic jitter or retry/backoff.

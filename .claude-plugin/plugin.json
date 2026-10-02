@@ -1,7 +1,7 @@
 {
   "name": "box-rclone-binder",
   "version": "0.1.2",
-  "description": "Bind one Box drive across multiple servers via rclone with non-expiring server auth; idempotent deploy, health-check self-heal, cron, and Discord alerts.",
+  "description": "Deploy Box/rclone on Linux/systemd with checked refresh and read-only health probes; standalone scrubbed alert helper.",
   "author": {
     "name": "DaizeDong"
   },

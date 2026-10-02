@@ -1,7 +1,8 @@
 """Discord alerting with severity routing and hard secret-scrubbing.
 
-Every outbound message passes through scrub() so a token/secret can never reach the relay even
-if a caller is careless. Severity routing mirrors ARCHITECTURE §5: jitter-only events are not
+Every outbound message passes through scrub() for supported credential labels, quoted values,
+Bearer/JWT formats and long opaque tokens. Callers must exclude other secret-bearing text.
+Severity routing mirrors ARCHITECTURE §5: jitter-only events are not
 pushed; recovered=INFO; heal-failed/broken-chain=CRITICAL; drift=WARN.
 
 Delivery honesty is the other half of the contract: send() reports pushed=True only when the
@@ -16,7 +17,8 @@ import sys
 
 _REDACTORS = [
     re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]+)?"),  # JWT
-    re.compile(r"(?i)(access_token|refresh_token|client_secret|token)\s*[=:]\s*\S+"),
+    re.compile(r"""(?i)["']?\b(?:access_token|refresh_token|client_secret|token)\b["']?\s*[=:]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,}\]]+)"""),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*"),
     re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----[\s\S]+?-----END[^-]+PRIVATE KEY-----"),
     # long opaque blob: covers both standard and URL-safe base64 alphabets (-, _) so an
     # unlabeled URL-safe token blob cannot slip through unscrubbed.
