@@ -77,7 +77,7 @@ def _companion_config_path():
     out and NOTHING was consulted. Reporting the second as the first is how an unchecked-out guard
     kit looks exactly like a clean install.
     """
-    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
     p = os.path.join(repo, "guards", "tools", "datadir.py")
     if not os.path.isfile(p):
         raise cfgmod.ConfigError(
