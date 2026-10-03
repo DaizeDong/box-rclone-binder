@@ -5,7 +5,7 @@ bundled minimal YAML subset parser). Operator configuration contains secret refe
 runtime credential values travel through protected files, input streams and environment.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 AUTH_MODES = ("jwt", "ccg-native", "ccg-mint", "oauth-broker")
 

@@ -232,6 +232,35 @@ def test_explicit_and_environment_priority_is_preserved(isolated_paths, tmp_path
     assert cli.discover_config_path() == str(env_dir / 'machines.yaml')
 
 
+@pytest.mark.parametrize('configured', [False, True])
+def test_skill_alias_resolves_the_canonical_guard(configured, tmp_path, monkeypatch):
+    alias = tmp_path / 'host-profile' / 'skills' / 'box-rclone-binder'
+    alias.parent.mkdir(parents=True)
+    target = ROOT / 'skills/box-rclone-binder'
+    if sys.platform == 'win32':
+        import _winapi
+        _winapi.CreateJunction(str(target), str(alias))
+    else:
+        alias.symlink_to(target, target_is_directory=True)
+    monkeypatch.setattr(cli, '__file__', str(alias / 'scripts/box_binder.py'))
+    companion = tmp_path / 'synthetic-companion' if configured else None
+    real_spec = importlib.util.spec_from_file_location
+    loaded = []
+    def guard_spec(name, path):
+        loaded.append(Path(path).resolve())
+        spec = real_spec(name, path)
+        execute = spec.loader.exec_module
+        def load(module):
+            execute(module)
+            monkeypatch.setattr(module, 'resolve_companion_root', lambda skill: companion)
+        monkeypatch.setattr(spec.loader, 'exec_module', load)
+        return spec
+    monkeypatch.setattr(importlib.util, 'spec_from_file_location', guard_spec)
+    expected = str(companion / 'machines.yaml') if companion else None
+    assert cli._companion_config_path() == expected
+    assert loaded == [(ROOT / 'guards/tools/datadir.py').resolve()]
+
+
 @pytest.mark.parametrize('fault', ['no-spec', 'no-loader', 'no-api', 'bad-api', 'load-error'])
 def test_broken_resolver_is_a_config_error(fault, isolated_paths, monkeypatch):
     def execute(module):
