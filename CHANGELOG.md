@@ -3,7 +3,14 @@
 All notable changes to this project are documented here (Keep a Changelog style).
 
 ## [Unreleased]
+
+### Changed
+- Document the retired maintenance status and retain former expansion plans as deferred work.
+- Clarify the authentication tradeoff and keep configured, synthetic-tested and live-accepted outcomes separate.
+
 ### Fixed
+- Resolve installed configuration discovery from the real script location, so linked installations find the pinned Guards resolver.
+- Align the runtime package version with the existing 0.1.2 plugin declaration.
 - **Alerts reported non-delivery as a successful push.** The explicit `alerts.relay` branch built
   the old positional argv `[python, relay, message]`, which a relay's argparse rejects with exit 2,
   and *every* branch then set `pushed=True` without looking at the child's return code. Following

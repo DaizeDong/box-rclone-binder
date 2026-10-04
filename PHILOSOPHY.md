@@ -1,5 +1,7 @@
 # box-rclone-binder, Design Philosophy
 
+**Maintenance status:** retired from active development. These principles explain the retained implementation.
+
 > One test governs every change: **does it fix the framing, or just patch a symptom?**
 
 The whole tool follows from one reframing: *binding one Box drive to many servers is an auth-model
@@ -47,4 +49,4 @@ forever; fix the auth model and the deploy becomes boring.
   fsync -> rename; checked systemd timer installation; bounded access validation and explicit
   per-host refresh results. Transient failures require a manual retry or the next scheduled run.
   `invalid_grant` stops the command for manual reauthorization. Automatic alert dispatch, cron
-  installation and in-command backoff remain future work.
+  installation and in-command backoff remain deferred, with no active delivery commitment.
