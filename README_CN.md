@@ -9,22 +9,22 @@
 
 [English](README.md) | [中文版](README_CN.md)
 
----
-
-## ⭐ 先读这里, 设计理念
-
-把一个 Box 账号用 rclone 绑到多台服务器，看似是部署问题，其实是**鉴权模型**问题。Box 的 OAuth
-`refresh_token` 是**单次使用 + 轮转**的：任一台刷新就作废其余各台的 token（`invalid_grant`）。
-一个结构上不可共享的凭证，再精巧的脚本也救不回来。
-
-所以本工具第一步是**直接消灭这个共享的轮转密钥**,改用 Box **服务端鉴权**（默认 JWT）：每台机持
-同一份长期凭证、各自本地铸造短命 access token，天然多机一致、无可争抢。之后才在其上叠加幂等部署、
-只读健康检查和逐台刷新结果。合成测试能验证确定性逻辑；真实授权、定时器触发、重启恢复和跨过
-token 过期点后的续期，还需要独立的执行证据。
-
-📜 **[完整设计理念 -> PHILOSOPHY.md](PHILOSOPHY.md)**
+**维护状态：** 已停止主动开发。下列命令供维护已有安装时参考；原扩展计划保持搁置，不承诺交付。
 
 ---
+
+## 设计理念
+
+Box OAuth 的刷新令牌用过后就会轮换。多台主机共用这份令牌时，一台完成刷新，其余主机的凭据
+就可能失效。默认的 JWT 方案让每台主机使用长期服务端凭据，独立取得短期访问令牌，从而消除
+共用刷新令牌的竞争。代价是需要先配置 Box 应用并取得管理员授权。个人账号若使用 broker 路径，
+仍需协调刷新，并保留人工重新授权的流程。
+
+部署按声明收敛文件和 systemd 定时器；健康检查分别报告已观测的访问结果和未知字段。
+合成检查可以在没有真实凭据时验证这些约定，但不能证明 Box 授权、定时器触发或跨过期点续期成功。
+把这些结果分开，才能避免将“配置已写好”误报为“部署已验收”。
+
+[完整设计理念](PHILOSOPHY.md)。
 
 ## 它是什么(不是什么)
 
@@ -39,7 +39,7 @@ token 过期点后的续期，还需要独立的执行证据。
 /plugin install github:DaizeDong/box-rclone-binder
 ```
 
-或手动克隆:
+或手动克隆：
 
 ```bash
 git clone --recurse-submodules https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/box-rclone-binder
@@ -73,7 +73,7 @@ python tests/run_gate.py                                             # 完整 mo
   `$BOX_RCLONE_BINDER_CONFIG_DIR` → 私有伴生仓。
   选定的文件缺失时会报错；没有选定路径则返回 `EXIT_CONFIG (3)`
   并给出私有伴生仓的初始化指引。
-- **首次配置:**
+- **首次配置：**
   ```bash
   cd skills/box-rclone-binder
   export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion  # 已初始化的私有 Git 仓库
@@ -84,7 +84,7 @@ python tests/run_gate.py                                             # 完整 mo
 - **切换 config（即插即用）:** `machines.yaml` 自包含（仅指针、无硬编码路径）, 把环境变量指向另一份
   即可，或用 `-c`:
   `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-prod.yaml`，也可选择伴生仓中的另一份清单。
-- **密钥:** Mode B，`machines.yaml`、`*.env`、`*.pem`、`*.key`、`rclone.conf` 均保存在公开仓之外。
+- **密钥：** Mode B，`machines.yaml`、`*.env`、`*.pem`、`*.key`、`rclone.conf` 均保存在公开仓之外。
   真实清单在私有伴生仓中做版本管理；清单里只放 `*_ref` 指针，真实值留在你的后端
   （`env`/`file`/`op`/`vault`/`aws-ssm`）。
   `verify-config` 对任何内联密钥硬失败。

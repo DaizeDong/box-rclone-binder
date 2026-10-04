@@ -9,25 +9,25 @@ Deploy a Box/rclone runtime across Linux servers, validate access, and refresh c
 
 [English](README.md) | [中文版](README_CN.md)
 
----
-
-## ⭐ Read this first, the design philosophy
-
-Binding one Box account to several servers with rclone looks like a deploy problem. It is not. It
-is an **auth-model** problem. Box's OAuth `refresh_token` is **single-use and rotating**: the first
-host that refreshes invalidates every other host's token (`invalid_grant`). No amount of careful
-scripting fixes a credential that is structurally unshareable.
-
-So box-rclone-binder's first move is to **delete the shared rotating secret** by switching to Box
-**server auth** (JWT by default): each host holds the same long-term credential and mints its own
-short-lived access token locally, naturally consistent, nothing to fight over. Only *then* does the
-tooling adds idempotent deployment, read-only health checks and explicit refresh results.
-Synthetic tests verify deterministic behavior with **no real Box credentials**. Real authorization,
-timer firing and renewal across token expiry need their own execution evidence.
-
-📜 **[Read the full design philosophy -> PHILOSOPHY.md](PHILOSOPHY.md)**
+**Maintenance status:** retired from active development. The commands below are retained for
+maintaining existing installations; the former expansion plans are deferred without a delivery commitment.
 
 ---
+
+## Design Philosophy
+
+Box OAuth refresh tokens rotate after use. Sharing the same rotating token across hosts makes
+their credentials diverge as soon as one host refreshes. The default JWT design gives each host
+the long-term server credential needed to mint its own short-lived access token. This removes
+that shared-token race, at the cost of Box application setup and administrative authorization.
+Personal accounts that need the broker path still require coordinated refresh and possible reauthorization.
+
+Deployment then converges declared files and systemd timers, while health checks report observed
+access and unknown measurements separately. Synthetic checks can validate these contracts without
+credentials. They cannot establish Box authorization, timer firing or renewal across token expiry.
+Keeping those outcomes separate prevents a configured host from being reported as an accepted deployment.
+
+[Read the full design philosophy](PHILOSOPHY.md).
 
 ## What it is (and isn't)
 

@@ -15,7 +15,13 @@ Current: **v0.1.2**
 - 10-signal deterministic acceptance gate (`tests/run_gate.py`) using synthetic inputs.
   Quote results only for the tested source and distinguish native/live checks from offline checks.
 
-## Planned
+## Maintenance status
+
+Retired from active development. Existing source and operational contracts remain available for
+maintenance. The items below record work deferred when development stopped; they are not
+scheduled releases or requests to restart live acceptance.
+
+## Deferred work
 - Controlled live acceptance: transport, timer firing, restart recovery and token-expiry renewal.
 - Automatic alert dispatch, explicit transient-error backoff and optional cron installation.
 - v0.2: wire G1/G2 (agent-skills-eval lift + held-out trigger rate) into the gate.
