@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "tool": "box-rclone-binder",
+  "artifacts": [
+    {
+      "artifact_id": "readme",
+      "path_pattern": "README.md",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "exclusions",
+      "path_pattern": ".gitignore",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "inventory",
+      "path_pattern": "machines.yaml",
+      "purpose": "Inventory and secret references for an explicitly retained deployment.",
+      "schema": "skills/box-rclone-binder/CONFIG.md; skills/box-rclone-binder/scripts/boxbinder/config.py.",
+      "producer": "Authorized deployment maintainer.",
+      "consumer_or_final_deliverable": "Config validation and any separately authorized recovery.",
+      "rebuild_or_restore": "Restore the reviewed inventory and revalidate every host before deployment.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep only inventories needed for a current deployment or explicitly retained recovery. Local retirement does not authorize changing remote hosts."
+      }
+    },
+    {
+      "artifact_id": "oauth_recovery",
+      "path_pattern": "data/box-oauth.env",
+      "purpose": "Minimal private OAuth recovery material for a retired local installation.",
+      "schema": "Environment KEY=VALUE credential format; skills/box-rclone-binder/CONFIG.md secret-reference rules.",
+      "producer": "Authorized OAuth provisioning.",
+      "consumer_or_final_deliverable": "Explicitly requested credential recovery only.",
+      "rebuild_or_restore": "Restore from the approved private backup; token validity must be checked independently.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Retain the selected recovery material after local retirement. Replace or remove it only when recovery is no longer required and credential rotation or revocation has been reconciled."
+      }
+    }
+  ]
+}
