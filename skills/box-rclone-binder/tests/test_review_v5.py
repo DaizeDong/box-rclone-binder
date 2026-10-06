@@ -137,6 +137,7 @@ class Box5AuthorTests(unittest.TestCase):
             "sys": SimpleNamespace(executable="synthetic-python"),
             "subprocess": SimpleNamespace(run=lambda *args, **kwargs:
                 SimpleNamespace(returncode=generator_control(storage), stderr="")),
+            "_no_window": lambda **kwargs: kwargs,
             "open": lambda path, mode: io.BytesIO(storage[path])}
         definitions("guards/tools/data_boundary.py", {"check_fixtures_are_generated"}, namespace)
         findings = []
