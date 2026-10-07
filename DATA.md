@@ -5,6 +5,9 @@ recover an existing deployment; installing or retiring a local copy does not
 authorize changes to remote mounts, services or accounts.
 
 [storage.contract.json](storage.contract.json) declares minimal private retention.
+An existing verified PRIVATE companion can contain a `.companion` file with the
+single line `box-rclone-binder` when literal Git configuration cannot establish
+discovery. This identity does not initialize a deployment or replace write checks.
 [The configuration schema](skills/box-rclone-binder/CONFIG.md) remains authoritative
 for `machines.yaml`, host validation and secret references. Keep an inventory only
 for an active deployment or an explicitly retained recovery need. Do not create an
