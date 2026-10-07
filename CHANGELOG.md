@@ -4,11 +4,17 @@ All notable changes to this project are documented here (Keep a Changelog style)
 
 ## [Unreleased]
 
+### Storage review threshold
+- Set a 64 MiB companion working-data review threshold. Required observations and
+  recovery state stay protected when the threshold is exceeded.
+
 ### Changed
 - Document the retired maintenance status and retain former expansion plans as deferred work.
 - Clarify the authentication tradeoff and keep configured, synthetic-tested and live-accepted outcomes separate.
 
 ### Fixed
+- Declare an explicit companion identity for existing PRIVATE stores whose Git
+  configuration cannot establish convention-based discovery.
 - Resolve installed configuration discovery from the real script location, so linked installations find the pinned Guards resolver.
 - Align the runtime package version with the existing 0.1.2 plugin declaration.
 - **Alerts reported non-delivery as a successful push.** The explicit `alerts.relay` branch built
