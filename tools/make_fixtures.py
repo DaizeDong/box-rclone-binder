@@ -311,8 +311,9 @@ def test_init_and_verify_use_the_same_default_inventory(
     assert expected.read_bytes() == Path(initializer.template_path()).read_bytes()
     assert cli.discover_config_path() == str(expected)
     capsys.readouterr()
-    assert verifier.main(['--json']) == 0
-    assert json.loads(capsys.readouterr().out)['config_path'] == str(expected)
+    assert verifier.main(['--json']) == 3
+    report = json.loads(capsys.readouterr().out)
+    assert report['config_path'] == str(expected) and report['ready'] is False
 
 
 def test_explicit_init_preserves_existing_file_without_force(
@@ -346,6 +347,7 @@ def test_init_refuses_inventory_inside_the_public_tool_tree(
 
 def test_environment_hot_swap_changes_verified_inventory(
         isolated_paths, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv('BOX_TEST_JWT', json.dumps({'synthetic': True}))
     for count in (1, 2):
         path = tmp_path / ('fleet%d.yaml' % count)
         path.write_text(json.dumps(inventory(count=count)), encoding='utf-8')
@@ -1022,7 +1024,8 @@ def main():
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--out', type=Path, help='Generate the fixture basename into this directory.')
     args = parser.parse_args()
-    outputs = {FIXTURE: render().encode('utf-8'),
+    outputs = {FIXTURE.parent.parent / 'test_fleet_readiness.py': fleet_readiness_test_source().encode('utf-8'),
+               FIXTURE: render().encode('utf-8'),
                FIXTURE.parent / 'healthcheck.json': healthcheck_example().encode('utf-8'),
                FIXTURE.parent.parent / 'test_receipt_identity.py': receipt_test_source().encode('utf-8'),
                FIXTURE.parent.parent / 'test_config_discovery.py': config_discovery_test_source().encode('utf-8'),
@@ -1236,6 +1239,10 @@ def isolated_python_stub(python_path, script_path=None):
     if script_path is not None:
         arguments.append(script_path)
     return "#!/bin/sh\nexec " + shlex.join(arguments) + ' "$@"\n'
+
+
+def fleet_readiness_test_source():
+    return '"""Generated local readiness checks use only synthetic inventories and credentials."""\nimport json\nfrom pathlib import Path\nimport sys\n\nimport pytest\n\nROOT = Path(__file__).resolve().parents[3]\nsys.path[:0] = [str(ROOT / \'tools\'), str(ROOT / \'skills/box-rclone-binder/scripts\')]\nfrom make_fixtures import canary, inventory\nimport verify_config\n\n\n@pytest.mark.parametrize(\'mode\', [\'jwt\', \'ccg-native\', \'ccg-mint\', \'oauth-broker\'])\ndef test_missing_required_reference_is_not_ready(mode, tmp_path, monkeypatch, capsys):\n    data = inventory(mode, 1)\n    for value in data[\'secrets\'].values():\n        monkeypatch.delenv(value, raising=False)\n    target = tmp_path / \'machines.yaml\'\n    target.write_text(json.dumps(data), encoding=\'utf-8\')\n    assert verify_config.main([\'-c\', str(target), \'--json\']) == 3\n    report = json.loads(capsys.readouterr().out)\n    assert report[\'schema_valid\'] is True\n    assert report[\'ready\'] is False\n    assert report[\'required_ref_errors\']\n\n\ndef test_only_selected_host_requirements_control_readiness(tmp_path, monkeypatch, capsys):\n    data = inventory(\'jwt\', 1)\n    for value in data[\'secrets\'].values():\n        monkeypatch.delenv(value, raising=False)\n    monkeypatch.setenv(data[\'secrets\'][\'jwt_config_ref\'], json.dumps({\'synthetic\': canary()}))\n    target = tmp_path / \'machines.yaml\'\n    target.write_text(json.dumps(data), encoding=\'utf-8\')\n    assert verify_config.main([\'-c\', str(target), \'--json\']) == 0\n    report = json.loads(capsys.readouterr().out)\n    assert report[\'ready\'] is True and report[\'missing_refs\']\n    assert canary() not in json.dumps(report)\n\n\ndef test_host_override_cannot_borrow_fleet_readiness(tmp_path, monkeypatch, capsys):\n    data = inventory(\'jwt\', 2)\n    monkeypatch.setenv(data[\'secrets\'][\'jwt_config_ref\'], json.dumps({\'synthetic\': canary()}))\n    data[\'hosts\'][1][\'secrets\'] = {\'jwt_config_ref\': data[\'secrets\'][\'broker_state_ref\']}\n    monkeypatch.delenv(data[\'secrets\'][\'broker_state_ref\'], raising=False)\n    target = tmp_path / \'machines.yaml\'\n    target.write_text(json.dumps(data), encoding=\'utf-8\')\n    assert verify_config.main([\'-c\', str(target), \'--json\']) == 3\n    report = json.loads(capsys.readouterr().out)\n    assert report[\'ready\'] is False\n    assert canary() not in json.dumps(report)\n'
 
 
 if __name__ == '__main__':

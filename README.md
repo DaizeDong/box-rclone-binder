@@ -78,11 +78,12 @@ auth mode, and **pointers** to where secrets live). Full contract:
   export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion  # an initialized private Git repository
   python scripts/init_config.py                       # stamp its machines.yaml from the generated template
   # edit hosts, keep secrets as *_ref pointers, then:
-  python scripts/box_binder.py verify-config --json   # doctor: schema + pointer-only + no inline secrets
+  python scripts/verify_config.py --json              # local schema and required-reference readiness
   ```
-- **Switch configs (hot-swap):** `machines.yaml` is self-contained (pointer-only, no hardcoded
-  paths), repoint the env var or pass `-c`:
-  `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-prod.yaml` or a staging inventory in that companion.
+- **Switch retained profiles:** select separate PRIVATE companions, each containing exactly
+  `machines.yaml`, for example `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-profile-b/machines.yaml`.
+  The local verifier reports NOT READY when a required reference is missing. See the full
+  [discovery and switching contract](skills/box-rclone-binder/CONFIG.md).
 - **Secrets:** Mode B, `machines.yaml`, `*.env`, `*.pem`, `*.key`, `rclone.conf` stay outside the
   public repository. Version real inventories in the private companion; only `*_ref` pointers
   live in the inventory, while secret values stay in your backend

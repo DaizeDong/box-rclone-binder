@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "repository_kind": "skill",
+  "configuration": "settings",
+  "rationale": "Retired tool with retained machines.yaml inventories; local validation remains distinct from operational deployment.",
+  "documentation": [
+    "CONFIG.md",
+    "skills/box-rclone-binder/CONFIG.md",
+    "DATA.md"
+  ],
+  "settings": {
+    "schema_document": "skills/box-rclone-binder/CONFIG.md",
+    "discovery_document": "skills/box-rclone-binder/CONFIG.md",
+    "environment": "BOX_RCLONE_BINDER_CONFIG",
+    "aliases": [
+      "BOX_RCLONE_BINDER_CONFIG_DIR",
+      "BOX_RCLONE_BINDER_DATA_DIR"
+    ],
+    "precedence": [
+      "-c/--config",
+      "BOX_RCLONE_BINDER_CONFIG",
+      "BOX_RCLONE_BINDER_CONFIG_DIR",
+      "shared companion: BOX_RCLONE_BINDER_DATA_DIR, proven sibling, home defaults"
+    ],
+    "required_fields": [
+      "hosts[].host",
+      "hosts[].remote_name",
+      "secrets references required by each host auth_mode"
+    ],
+    "initializer": {
+      "path": "scripts/init_config.py",
+      "args": [
+        "--out",
+        "{output}"
+      ]
+    },
+    "doctor": {
+      "path": "scripts/verify_config.py",
+      "args": [
+        "--json"
+      ]
+    }
+  }
+}

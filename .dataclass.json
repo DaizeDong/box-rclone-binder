@@ -29,7 +29,8 @@
     "skills/box-rclone-binder/tests/test_review_v10.py",
     "skills/box-rclone-binder/tests/test_review_v11.py",
     "skills/box-rclone-binder/tests/test_review_v14.py",
-    "skills/box-rclone-binder/tests/test_review_v15.py"
+    "skills/box-rclone-binder/tests/test_review_v15.py",
+    "skills/box-rclone-binder/tests/test_fleet_readiness.py"
   ],
   "_data_home": "The private companion Git repository, resolved by guards/tools/datadir.py or explicitly selected with BOX_RCLONE_BINDER_CONFIG[_DIR]. Version real records there; there is no public-tree fallback."
 }

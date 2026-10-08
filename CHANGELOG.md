@@ -13,6 +13,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 - Clarify the authentication tradeoff and keep configured, synthetic-tested and live-accepted outcomes separate.
 
 ### Fixed
+- Separate schema validity from local readiness: required host references now cause NOT READY when unavailable. Retained profiles each use a separate companion with machines.yaml, and discovery documentation includes shared fallbacks.
 - Declare an explicit companion identity for existing PRIVATE stores whose Git
   configuration cannot establish convention-based discovery.
 - Resolve installed configuration discovery from the real script location, so linked installations find the pinned Guards resolver.

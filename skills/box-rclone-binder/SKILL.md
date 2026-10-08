@@ -35,6 +35,11 @@ Server-auth modes give each host its OWN long-term credential and locally minted
 access tokens -> naturally multi-host consistent, no rotation to fight. Read
 `reference/auth-modes.md` before choosing.
 
+This tool is retired and maintained for retained recovery needs. A configuration audit uses
+`scripts/verify_config.py --json` locally; required reference failures are NOT READY. See
+[CONFIG.md](CONFIG.md) for discovery and separate companion profiles. Remote probes or
+deployment require an operational request for an existing deployment.
+
 ## Workflow (thin)
 
 1. Set `BOX_RCLONE_BINDER_CONFIG_DIR` to the private companion repository, then run
