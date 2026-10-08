@@ -18,13 +18,15 @@ canonical doc is the source of truth.
   `defaults` / `secrets` / `hosts[]` / `alerts`. Full field tables are in the canonical doc.
 - **Discovery env var:** `$BOX_RCLONE_BINDER_CONFIG` (a file, or a dir holding `machines.yaml`),
   then `$BOX_RCLONE_BINDER_CONFIG_DIR`, then the private companion resolved by
-  `guards/tools/datadir.py`. A missing selected inventory is a configuration error.
+  `guards/tools/datadir.py`, including DATA_DIR, proven sibling and home fallback selection
+  described in the canonical document. A missing selected inventory is a configuration error.
 - **First-time (deterministic stamp):** set the env var to your private companion, then
   `python scripts/init_config.py` writes a
   `machines.yaml` byte-identical to the committed `machines.example.yaml` template.
 - **Verify / hot-swap:** `python scripts/verify_config.py` resolves + validates the config the env
   var points at and prints the resolved path, so switching `$BOX_RCLONE_BINDER_CONFIG` between two
-  configs is provable. (Root `scripts/init_config.py` and `scripts/verify_config.py` are thin shims
+  retained companions, each with `machines.yaml`, is provable. Required reference failures
+  report NOT READY with exit 3; no remote host is probed. (Root `scripts/init_config.py` and `scripts/verify_config.py` are thin shims
   delegating to `skills/box-rclone-binder/scripts/`.)
 - **Secrets, Mode B:** the live `machines.yaml` carries only `*_ref` pointers; real values live in
   your backend (`env`/`file`/`op`/`vault`/`aws-ssm`). `.gitignore` blocks `secrets/`, `machines.yaml`,

@@ -15,8 +15,9 @@ Discovery order (first hit wins; same as box_binder.discover_config_path):
 Usage:
   python scripts/verify_config.py [-c <path>] [--json]
 
-Exit 0 = config resolved + schema valid (missing secret refs are a warning, not a failure).
-Exit 3 = config not found or invalid (EXIT_CONFIG).
+Exit 0 = schema valid and required local secret references resolve for every configured host.
+Exit 3 = config missing, invalid, or required local references unavailable (EXIT_CONFIG).
+Readiness is local configuration readiness, not a remote deployment or authentication probe.
 Stdlib only. Cross-platform. Never echoes a secret VALUE -- only presence.
 """
 from __future__ import annotations
@@ -58,13 +59,24 @@ def main(argv=None):
 
     refs = cfgmod.resolve_refs(cfg)                       # presence only; never the value
     missing = sorted(k for k, v in refs.items() if not v["present"])
-    result = {"verify": "config", "config_path": path, "ready": True,
+    required_errors = []
+    for host in cfg.hosts:
+        try:
+            cfgmod.secret_values(cfg, host)  # reuse runtime requirements; never emit the values
+        except cfgmod.ConfigError as exc:
+            required_errors.append({"host": host["host"], "error": str(exc)})
+    code = EXIT_CONFIG if required_errors else EXIT_OK
+    result = {"verify": "config", "config_path": path, "resolved_root": os.path.dirname(path),
+              "ready": not required_errors,
               "schema_valid": True, "no_inline_secrets": True,
               "hosts": [h.get("host") for h in cfg.hosts],
               "auth_modes": sorted({cfg.auth_mode(h) for h in cfg.hosts}),
               "secret_source": cfg.secrets.get("source", "env"),
-              "missing_refs": missing, "exit_code": EXIT_OK}
-    return _emit(a.json, EXIT_OK, result)
+              "missing_refs": missing, "required_ref_errors": required_errors,
+              "exit_code": code}
+    if required_errors:
+        result["error"] = "Required local secret references are unavailable or invalid; see required_ref_errors."
+    return _emit(a.json, code, result)
 
 
 def _emit(as_json, code, result):

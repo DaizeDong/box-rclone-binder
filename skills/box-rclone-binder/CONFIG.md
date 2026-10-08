@@ -23,7 +23,7 @@ The cardinal invariant: **`machines.yaml` never holds a secret value, only a poi
 1. `-c/--config <path>`, explicit flag (a file, or a dir holding `machines.yaml`).
 2. `$BOX_RCLONE_BINDER_CONFIG`, env var; a file path, or a dir holding `machines.yaml` (recommended; location-independent).
 3. `$BOX_RCLONE_BINDER_CONFIG_DIR`, accepted alias; a dir holding `machines.yaml`.
-4. `machines.yaml` in the private companion resolved by `guards/tools/datadir.py`.
+4. `machines.yaml` in the private companion resolved by [Guards companion discovery](../../guards/COMPANION.md): `BOX_RCLONE_BINDER_DATA_DIR`, proven sibling companions, then home defaults (`~/.box-rclone-binder-config` and `~/.box-rclone-binder-data`).
 
 A selected path is retained even when the file is missing; another inventory cannot silently
 replace it. Without a companion or explicit selection, initialization and verification exit
@@ -150,7 +150,7 @@ material and refuses to load if any is found. The skill never echoes a secret va
 Private repositories may version the inventory, run records and credentials according to the
 owner's backup policy; the public repository must never contain them.
 
-## First-time setup (E3), succeeds on the first try
+## Local configuration validation (E3)
 
 ```bash
 cd skills/box-rclone-binder
@@ -161,22 +161,31 @@ python scripts/init_config.py                # writes the selected companion's m
 
 # 2. Edit and version the inventory in that private repository; keep secrets as *_ref pointers.
 
-# 3. Put the real secret VALUES in your backend (env/op/vault/aws-ssm/file), then confirm:
-python scripts/box_binder.py verify-config --json   # schema + pointer-only + no inline secrets
-python scripts/box_binder.py doctor        --json   # per-host rclone/ssh/systemd probe; names gaps
+# 3. Resolve required references through env or file, then check local readiness:
+python scripts/verify_config.py --json
 ```
+
+The local verifier reports `schema_valid` separately from `ready`. Missing or invalid
+references required by any configured host return `ready: false` and exit 3, including
+per-host overrides. Optional references do not block readiness. It reuses the runtime
+resolver and never prints secret values. `box-binder verify-config` remains a schema
+check only. Neither local check proves remote authentication or deployment readiness.
+This tool is retired; do not initialize a deployment or run remote doctor probes merely
+to satisfy a configuration audit.
 
 ## Switching between configs (hot-swap), E5
 
-`machines.yaml` is self-contained: pointer-only secrets, and no machine-local absolute-path
-coupling, so a config is swappable with no other change. Switch by repointing the env var, or pass `-c`:
+Retain each profile in a separate verified PRIVATE companion, with the exact filename
+`machines.yaml` declared in [the storage contract](../../storage.contract.json). File-source
+references may still require local secret material. Switch by selecting the other companion:
 
 ```bash
-export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-prod.yaml     # config A
-export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-staging.yaml  # config B
-# or, per invocation:
-python scripts/box_binder.py healthcheck -c /path/to/private-companion/fleet-staging.yaml --json
+export BOX_RCLONE_BINDER_CONFIG=/path/to/private-profile-a/machines.yaml
+export BOX_RCLONE_BINDER_CONFIG=/path/to/private-profile-b/machines.yaml
+# or, per invocation, validate locally:
+python scripts/verify_config.py -c /path/to/private-profile-b/machines.yaml --json
 ```
 
-Verify the swap: `verify-config` against each path, then flip `$BOX_RCLONE_BINDER_CONFIG` between
-them, both must report a valid schema.
+Verify each selection with `scripts/verify_config.py --json`; its resolved path and local
+readiness must match that profile. Alternative inventory filenames require a reviewed storage
+contract amendment before use.

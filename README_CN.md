@@ -79,11 +79,11 @@ python tests/run_gate.py                                             # 完整 mo
   export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion  # 已初始化的私有 Git 仓库
   python scripts/init_config.py                       # 在伴生仓中从合成模板生成 machines.yaml
   # 改 hosts，密钥保持 *_ref 指针，然后:
-  python scripts/box_binder.py verify-config --json   # doctor: schema + 仅指针 + 禁内联密钥
+  python scripts/verify_config.py --json              # 本地结构校验和必需引用检查
   ```
-- **切换 config（即插即用）:** `machines.yaml` 自包含（仅指针、无硬编码路径）, 把环境变量指向另一份
-  即可，或用 `-c`:
-  `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/fleet-prod.yaml`，也可选择伴生仓中的另一份清单。
+- **切换保留的配置：** 每套配置放在独立的 PRIVATE 伴生仓里，文件名固定为 `machines.yaml`。
+  例如 `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-profile-b/machines.yaml`。
+  本地校验发现必需引用缺失时会返回 NOT READY；完整发现顺序见 [CONFIG.md](skills/box-rclone-binder/CONFIG.md)。
 - **密钥：** Mode B，`machines.yaml`、`*.env`、`*.pem`、`*.key`、`rclone.conf` 均保存在公开仓之外。
   真实清单在私有伴生仓中做版本管理；清单里只放 `*_ref` 指针，真实值留在你的后端
   （`env`/`file`/`op`/`vault`/`aws-ssm`）。

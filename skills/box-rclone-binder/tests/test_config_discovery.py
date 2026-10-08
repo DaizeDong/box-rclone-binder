@@ -143,8 +143,9 @@ def test_init_and_verify_use_the_same_default_inventory(
     assert expected.read_bytes() == Path(initializer.template_path()).read_bytes()
     assert cli.discover_config_path() == str(expected)
     capsys.readouterr()
-    assert verifier.main(['--json']) == 0
-    assert json.loads(capsys.readouterr().out)['config_path'] == str(expected)
+    assert verifier.main(['--json']) == 3
+    report = json.loads(capsys.readouterr().out)
+    assert report['config_path'] == str(expected) and report['ready'] is False
 
 
 def test_explicit_init_preserves_existing_file_without_force(
@@ -178,6 +179,7 @@ def test_init_refuses_inventory_inside_the_public_tool_tree(
 
 def test_environment_hot_swap_changes_verified_inventory(
         isolated_paths, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv('BOX_TEST_JWT', json.dumps({'synthetic': True}))
     for count in (1, 2):
         path = tmp_path / ('fleet%d.yaml' % count)
         path.write_text(json.dumps(inventory(count=count)), encoding='utf-8')
