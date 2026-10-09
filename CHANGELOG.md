@@ -4,11 +4,9 @@ All notable changes to this project are documented here (Keep a Changelog style)
 
 ## [Unreleased]
 
-### Storage review threshold
+### Changed
 - Set a 64 MiB companion working-data review threshold. Required observations and
   recovery state stay protected when the threshold is exceeded.
-
-### Changed
 - Document the retired maintenance status and retain former expansion plans as deferred work.
 - Clarify the authentication tradeoff and keep configured, synthetic-tested and live-accepted outcomes separate.
 
@@ -18,17 +16,13 @@ All notable changes to this project are documented here (Keep a Changelog style)
   configuration cannot establish convention-based discovery.
 - Resolve installed configuration discovery from the real script location, so linked installations find the pinned Guards resolver.
 - Align the runtime package version with the existing 0.1.2 plugin declaration.
-- **Alerts reported non-delivery as a successful push.** The explicit `alerts.relay` branch built
-  the old positional argv `[python, relay, message]`, which a relay's argparse rejects with exit 2,
-  and *every* branch then set `pushed=True` without looking at the child's return code. Following
-  the documented `~/.local/relay.py` setup therefore produced a rejected alert reported as pushed.
-  Now: the explicit branch uses the relay grammar `send --stream infra --text <msg>` (same as the
-  env branch), `~` is expanded in the configured path, a missing egress script is detected before
-  spawning, and `pushed` is True only on exit 0. Every non-push, including policy skips, carries a
-  scrubbed `reason`. Ten regression tests pin this (`AlertDeliveryHonesty`), 43 tests pass.
-- `config/machines.example.yaml` pointed `alerts.relay` at a notifier path, which the relay grammar
-  would reject; it now points at a relay. CONFIG.md documents the resolution order and the exit-0
-  rule, and its alerts/defaults tables no longer show the stray commas left by a de-dash pass.
+- Correct alert delivery reporting: explicit relays use `send --stream infra --text <msg>`,
+  matching the environment branch, and expand `~`. Missing scripts fail before spawn;
+  `pushed` is true only on exit 0. Nonzero exits, timeouts and policy skips retain a scrubbed
+  reason. The prior `[python, relay, message]` invocation exited 2 but was reported as delivered.
+  The recorded regression result was 10 `AlertDeliveryHonesty` checks and 43 tests passing.
+- Correct the generated `alerts.relay` example from a notifier to a relay path. CONFIG.md
+  documents resolution order and the exit-0 requirement and removes stray table commas.
 
 ## [0.1.2] - 2026-07-06
 ### Fixed

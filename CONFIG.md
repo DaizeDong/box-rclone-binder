@@ -1,35 +1,25 @@
 # box-rclone-binder, Config (repo overview)
 
-This repo ships a single skill, **`box-rclone-binder`**, which is **config-bearing**: it reads a
-per-fleet machine inventory, `machines.yaml`, listing your hosts, auth mode, and **pointers** to
-where secrets live (never the secret values themselves).
+The tool reads a machine inventory, `machines.yaml`, containing hosts,
+authentication modes and secret references. The authoritative
+[configuration contract](skills/box-rclone-binder/CONFIG.md) defines every field,
+type, default, discovery step, secret backend and retained-profile switch.
 
-The authoritative, full config contract, every field, type, required-ness, example, the discovery
-order, secrets Mode B, first-time setup, and hot-swap, lives in the canonical skill doc:
+## Local configuration checks
 
-**→ [`skills/box-rclone-binder/CONFIG.md`](skills/box-rclone-binder/CONFIG.md)**
+Select a PRIVATE companion containing exactly `machines.yaml` with
+`BOX_RCLONE_BINDER_CONFIG` or `BOX_RCLONE_BINDER_CONFIG_DIR`.
+The full contract also describes explicit CLI selection and shared discovery
+through `guards/tools/datadir.py`.
+The root scripts below delegate to `skills/box-rclone-binder/scripts/`:
 
-This root file is a thin pointer so the config standard is discoverable from the repo root; the
-canonical doc is the source of truth.
+- `python scripts/init_config.py` writes the generated `machines.example.yaml`
+  template byte for byte to the selected inventory.
+- `python scripts/verify_config.py` prints the resolved path, validates schema and
+  checks required references. Missing required references report NOT READY and
+  exit 3; this local check does not probe a remote host.
 
-## At a glance
-
-- **Schema:** `machines.yaml`, top-level `schema_version` (the `version` field; currently `1`) +
-  `defaults` / `secrets` / `hosts[]` / `alerts`. Full field tables are in the canonical doc.
-- **Discovery env var:** `$BOX_RCLONE_BINDER_CONFIG` (a file, or a dir holding `machines.yaml`),
-  then `$BOX_RCLONE_BINDER_CONFIG_DIR`, then the private companion resolved by
-  `guards/tools/datadir.py`, including DATA_DIR, proven sibling and home fallback selection
-  described in the canonical document. A missing selected inventory is a configuration error.
-- **First-time (deterministic stamp):** set the env var to your private companion, then
-  `python scripts/init_config.py` writes a
-  `machines.yaml` byte-identical to the committed `machines.example.yaml` template.
-- **Verify / hot-swap:** `python scripts/verify_config.py` resolves + validates the config the env
-  var points at and prints the resolved path, so switching `$BOX_RCLONE_BINDER_CONFIG` between two
-  retained companions, each with `machines.yaml`, is provable. Required reference failures
-  report NOT READY with exit 3; no remote host is probed. (Root `scripts/init_config.py` and `scripts/verify_config.py` are thin shims
-  delegating to `skills/box-rclone-binder/scripts/`.)
-- **Secrets, Mode B:** the live `machines.yaml` carries only `*_ref` pointers; real values live in
-  your backend (`env`/`file`/`op`/`vault`/`aws-ssm`). `.gitignore` blocks `secrets/`, `machines.yaml`,
-  `*.env`, `*.pem`, `*.key`, `rclone.conf`, etc., and the loader hard-fails on any inline secret.
-- **History:** keep the real inventory and run records versioned in the private companion
-  repository. The public tool repository contains only generated examples.
+This tool is retired. Keep inventories and run records only for an active
+deployment or retained recovery need, as defined in [DATA.md](DATA.md).
+Real secret values and `secrets/` remain outside the public tool; inventories
+contain `*_ref` pointers and the loader rejects inline values.

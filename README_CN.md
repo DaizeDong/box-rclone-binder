@@ -4,7 +4,7 @@
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Languages](https://img.shields.io/badge/Languages-EN%20%2F%20CN-blue?style=flat)](#languages)
+[![Languages](https://img.shields.io/badge/Languages-EN%20%2F%20CN-blue?style=flat)](#语言)
 [![Roadmap](https://img.shields.io/badge/Roadmap-v0.1.2-purple?style=flat)](ROADMAP.md)
 
 [English](README.md) | [中文版](README_CN.md)
@@ -26,12 +26,11 @@ Box OAuth 的刷新令牌用过后就会轮换。多台主机共用这份令牌�
 
 [完整设计理念](PHILOSOPHY.md)。
 
-## 它是什么(不是什么)
+## 适用范围
 
-- **是**：一个聚焦的 CLI（`box-binder`），负责 Linux/systemd 部署、显式刷新、定时 CCG mint 或
-  broker 分发，以及只读访问验证。每台主机的结果分别报告。
-- **不是**：单机小助手（用原生 `rclone config` 即可）、通用 cron 模板器、通用云同步工具。一事一职，
-  三模块（deploy / refresh / healthcheck）。
+`box-binder` CLI 维护 Linux/systemd 部署、显式刷新、定时 CCG mint 或 broker
+分发，并通过 deploy、refresh、healthcheck 三个模块报告逐台主机的访问结果。
+单台主机可直接使用 `rclone config`。通用调度模板和云同步不在本工具范围内。
 
 ## 安装
 
@@ -61,33 +60,20 @@ python tests/run_gate.py                                             # 完整 mo
 
 ## 配置
 
-`plan-refresh` 只生成计划；`refresh` 才执行刷新并报告本次结果。部署成功表示文件和定时器
-状态已经读回核对，不表示 Box 授权已经可用。执行阶段支持 env/file 密钥来源，其他后端需要
-先导出。当前运行环境使用 systemd，不安装 cron，也不自动发送告警或在命令内重试。
+工具读取 `machines.yaml` 中的主机、鉴权模式和 `*_ref` 密钥引用。真实清单在 PRIVATE
+伴生仓中做版本管理，每套保留配置使用独立伴生仓及固定文件名 `machines.yaml`。
+密钥值留在所选后端，清单内的明文密钥会被拒绝。执行阶段支持 env/file；
+`op`、`vault`、`aws-ssm` 的值需先导出到这两种来源之一。
 
-`box-rclone-binder` 是**带 config 的 skill**, 它读取一份按机群组织的清单（`machines.yaml`：主机、
-鉴权模式，以及指向密钥存放处的**指针**）。完整规范见
-[CONFIG.md](skills/box-rclone-binder/CONFIG.md)。
+查找顺序从 `-c/--config` 开始，随后是 `BOX_RCLONE_BINDER_CONFIG`、
+`BOX_RCLONE_BINDER_CONFIG_DIR` 和共享伴生仓发现。选定文件缺失时仍报错；没有选定路径
+时返回 `EXIT_CONFIG (3)` 并给出设置指引。[CONFIG.md](skills/box-rclone-binder/CONFIG.md)
+规定完整发现顺序、合成模板初始化、字段、密钥引用和配置切换。
+本地 `scripts/verify_config.py --json` 还会检查必需引用，缺失时返回 NOT READY；
+`box-binder verify-config` 只检查结构。
 
-- **挂载（发现顺序）:** `-c/--config <path>` → `$BOX_RCLONE_BINDER_CONFIG` →
-  `$BOX_RCLONE_BINDER_CONFIG_DIR` → 私有伴生仓。
-  选定的文件缺失时会报错；没有选定路径则返回 `EXIT_CONFIG (3)`
-  并给出私有伴生仓的初始化指引。
-- **首次配置：**
-  ```bash
-  cd skills/box-rclone-binder
-  export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion  # 已初始化的私有 Git 仓库
-  python scripts/init_config.py                       # 在伴生仓中从合成模板生成 machines.yaml
-  # 改 hosts，密钥保持 *_ref 指针，然后:
-  python scripts/verify_config.py --json              # 本地结构校验和必需引用检查
-  ```
-- **切换保留的配置：** 每套配置放在独立的 PRIVATE 伴生仓里，文件名固定为 `machines.yaml`。
-  例如 `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-profile-b/machines.yaml`。
-  本地校验发现必需引用缺失时会返回 NOT READY；完整发现顺序见 [CONFIG.md](skills/box-rclone-binder/CONFIG.md)。
-- **密钥：** Mode B，`machines.yaml`、`*.env`、`*.pem`、`*.key`、`rclone.conf` 均保存在公开仓之外。
-  真实清单在私有伴生仓中做版本管理；清单里只放 `*_ref` 指针，真实值留在你的后端
-  （`env`/`file`/`op`/`vault`/`aws-ssm`）。
-  `verify-config` 对任何内联密钥硬失败。
+本工具已停止主动开发，只有已有部署或保留的恢复需求才需要初始化清单。
+存储和退役规则见 [DATA.md](DATA.md)。
 
 ## 如何触发
 
@@ -103,8 +89,13 @@ python tests/run_gate.py                                             # 完整 mo
 
 ## 局限
 
+`plan-refresh` 只生成计划；`refresh` 执行刷新并报告本次结果。部署成功表示文件和定时器
+状态已经读回核对，不表示 Box 授权已经可用。当前运行环境使用 systemd，不安装 cron，
+不自动发送告警，也不在命令内重试。具体行为见[部署](skills/box-rclone-binder/reference/deploy.md)
+和[刷新](skills/box-rclone-binder/reference/refresh-healthcheck.md)规范。
+
 - **Box 一次性授权是人工步骤**（登录 + Admin 批准），交接给用户；见
-  `skills/box-rclone-binder/reference/runbook.md`。离线测试使用合成输入；真实 SSH 执行、定时器、
+  [运行手册](skills/box-rclone-binder/reference/runbook.md)。离线测试使用合成输入；真实 SSH 执行、定时器、
   重启恢复及跨过期点续期都需要另行验证。
 - CCG-native 是否可用取决于 rclone 版本；`doctor` 只报告工具与能力，不能证明授权或跨过期点续期成功。
 - oauth-broker（个人版 Box）无法严格永久无人值守（链断需重新浏览器授权）。

@@ -2,51 +2,48 @@
 
 **Maintenance status:** retired from active development. These principles explain the retained implementation.
 
-> One test governs every change: **does it fix the framing, or just patch a symptom?**
+Multi-host Box access depends on the authentication model as well as deployment.
+A rotating OAuth refresh token creates coordination requirements that file
+deployment alone cannot resolve.
 
-The whole tool follows from one reframing: *binding one Box drive to many servers is an auth-model
-problem wearing a deploy problem's clothes.* Patch the deploy and you keep fighting expired tokens
-forever; fix the auth model and the deploy becomes boring.
+## P1, Independent token renewal
 
-## P1, Remove the shared rotating secret, don't coordinate it
+Box OAuth refresh tokens are single-use and rotate when refreshed. Copying one to
+multiple hosts lets the first refresh invalidate the others, even when access
+tokens have a 60-minute lifetime. A broker can coordinate this shared state but
+must preserve the rotation chain and support manual reauthorization.
 
-- **Symptom patch:** keep one OAuth `refresh_token` and build a clever broker/lock so only one host
-  refreshes at a time, racing a 60-minute clock across machines.
-- **Root cause:** the rotating, single-use `refresh_token` is *structurally* unshareable, any host
-  that refreshes invalidates the others. Coordination only narrows the race; it never removes it.
-- **Decision it produced:** default to Box **server auth (JWT)**. Each host holds the same long-term
-  credential and mints its own short-lived access token locally via rclone's resident renewer. No
-  refresh_token exists to share, so multi-host consistency is the default, not an achievement.
-  oauth-broker survives only as an explicitly-degraded last resort for personal Box.
+The default JWT mode gives each host the same long-term server credential so it
+can mint short-lived access tokens independently through rclone's resident
+renewer. This requires Box application setup and administrative authorization.
+The oauth-broker mode remains available for personal accounts that cannot use
+server authentication.
 
-## P2, Generated/configured != working; prove it under mocks
+## P2, Separate configuration and operational evidence
 
-- **Symptom patch:** ship once `rclone config` succeeds and the daemon starts.
-- **Root cause:** "it looks configured" hides silent breakage (the token that will rotate-fail in 60
-  days, the cron that never fires, the secret that leaked into a log).
-- **Decision it produced:** a 10-signal, program-adjudicable acceptance gate that runs with **no real
-  Box credentials**, refresh logic, idempotency, multi-host invariants, config validation, dry-run
-  no-op, secret hygiene, error classification, anti-pattern rejection, atomic writes, CLI contract.
-  A green offline gate establishes those synthetic checks. Authorization, real transport, timer
-  firing, restart persistence and token-expiry behavior still need separate evidence.
+Generated files and a started daemon do not prove valid authorization, timer
+firing or renewal. The credential-free acceptance gate checks ten synthetic
+signals: refresh logic, idempotency, multi-host invariants, configuration,
+dry-run behavior, secret hygiene, error classification, anti-pattern rejection,
+atomic writes and the CLI contract. Actual authorization, transport, scheduling,
+restart persistence and token-expiry behavior require separate live evidence.
 
-## P3, Secrets are referenced, never possessed
+## P3, Secret references and protected transport
 
-- **Symptom patch:** chmod-600 the conf and hope nobody commits it.
-- **Root cause:** any secret the tool *stores* is a secret it can *leak*, via repo, log, argv, or
-  image layer.
-- **Decision it produced:** `machines.yaml` carries only pointers (`*_ref`); values come from a
-  secret backend at runtime; tokens are injected by `@file`/env, never on argv; `verify-config`
-  hard-fails on inline secrets; alerts are scrubbed; gitignore blocks the whole secret-bearing set;
-  logs are `-v`, never `-vv`.
+`machines.yaml` contains only `*_ref` pointers. Values come from a secret backend
+at runtime; protected file input and child environments keep them out of argv.
+`verify-config` rejects inline secrets, alert output is scrubbed, and logs use
+`-v`, never `-vv`. Secret-bearing files are excluded from the public repository;
+private versioned backups follow the owner's policy.
 
-## P4, Converge declaratively; mutate atomically; heal within bounds
+## P4, Idempotent updates and explicit recovery
 
-- **Symptom patch:** re-run the installer and append to cron each time.
-- **Root cause:** non-idempotent, non-atomic operations drift hosts apart and corrupt state on
-  partial failure; unbounded self-heal amplifies outages.
-- **Decision it produced:** sha256 diff -> write only what changed; temp on the same volume ->
-  fsync -> rename; checked systemd timer installation; bounded access validation and explicit
-  per-host refresh results. Transient failures require a manual retry or the next scheduled run.
-  `invalid_grant` stops the command for manual reauthorization. Automatic alert dispatch, cron
-  installation and in-command backoff remain deferred, with no active delivery commitment.
+Deployment compares SHA-256 values and writes only changed content, using a
+same-volume temporary file, fsync and rename. It checks systemd timers and
+reports bounded access validation and per-host refresh outcomes. Atomic writes
+limit partial state; idempotent convergence allows the operator to retry.
+
+Transient failures require a manual retry or the next scheduled run.
+`invalid_grant` stops the command for manual reauthorization. Automatic alert
+dispatch, cron installation and in-command backoff remain deferred without an
+active delivery commitment.
