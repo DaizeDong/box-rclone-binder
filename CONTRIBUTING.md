@@ -1,10 +1,10 @@
 # Contributing
 
-Thanks for your interest in box-rclone-binder.
+This repository is retired from active development. Keep maintenance changes focused on existing installations and retained recovery needs.
 
 ## Ground rules
 
-1. **Never commit a secret.** No tokens, `config.json`, private keys, `*.env`, or filled
+1. **Keep private data out of this public repository.** No tokens, `config.json`, private keys, `*.env`, or filled
    `machines.yaml`. Pointers (`*_ref`) only. The gate's secret-hygiene signal (S6) will fail a PR
    that does. `verify-config` must stay a hard fail on inline secrets.
 2. **The acceptance gate must stay green.** Run it before every PR:
@@ -14,7 +14,7 @@ Thanks for your interest in box-rclone-binder.
    All 10 signals must pass with no real Box credentials. Add a signal when you add behaviour.
 3. **Keep secrets referenced, health read-only, writes atomic, and recovery explicit** (see
    `PHILOSOPHY.md`). Changes that violate these are out of scope by design.
-4. **Conform to Skill Repo Spec v1.** Keep the four version sources (plugin.json / both READMEs'
+4. **Conform to Skill Repo Spec v1.** Keep version sources (plugin.json / both READMEs'
    roadmap badge / ROADMAP / CHANGELOG) in lock-step. Bump CHANGELOG on every change.
 
 ## Dev setup
@@ -22,7 +22,7 @@ Thanks for your interest in box-rclone-binder.
 Stdlib-only (optional PyYAML; the bundled `yamlmin` is the fallback). Python 3.8+.
 
 ```bash
-git clone https://github.com/DaizeDong/box-rclone-binder.git
+git clone --recurse-submodules https://github.com/DaizeDong/box-rclone-binder.git
 cd box-rclone-binder/skills/box-rclone-binder
 python tests/run_gate.py
 ```

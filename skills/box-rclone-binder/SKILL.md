@@ -5,10 +5,14 @@ description: Configure one Box drive across Linux servers via rclone, deploy che
 
 # box-rclone-binder
 
-> Governing principle (full text in the repo's `PHILOSOPHY.md`): **the multi-host failure is the
-> auth model, not the deploy script.** Box's OAuth refresh_token is single-use and rotating, so
-> sharing one across N machines guarantees `invalid_grant`. The fix is to remove the shared
-> rotating secret entirely (server auth), then make deploy/health idempotent on top of that.
+This tool is retired and maintained for existing installations and retained recovery
+needs. Shared rotating OAuth tokens require coordinated renewal; server authentication
+lets hosts mint independently. See [PHILOSOPHY.md](../../PHILOSOPHY.md).
+
+A configuration audit uses `scripts/verify_config.py --json` locally; missing required
+references report NOT READY. [CONFIG.md](CONFIG.md) defines discovery and separate
+companion profiles. Remote probes or deployment require an operational request for
+an existing deployment.
 
 ## When to use / when to stop
 
@@ -19,7 +23,7 @@ description: Configure one Box drive across Linux servers via rclone, deploy che
 - **Not Box, or not rclone?** Out of scope.
 - **Generic cron/systemd templating?** Route elsewhere; this owns the Box+rclone seam specifically.
 
-## The one decision that defines the tool: auth mode
+## Authentication mode
 
 Use `box-binder doctor` for tool and SSH discovery. Choose the auth mode using the requirements
 below, then set `auth_mode` in `machines.yaml`. Doctor does not test Box authorization or CCG renewal:
@@ -31,16 +35,9 @@ below, then set `auth_mode` in `machines.yaml`. Doctor does not test Box authori
 | **ccg-mint** | none | enterprise, CCG-native unproven | external mint timer (<60 min) re-mints access token |
 | **oauth-broker** | one master only | personal Box, no Admin | single flock'd master refreshes, distributes access-only blobs |
 
-Server-auth modes give each host its OWN long-term credential and locally minted short-lived
-access tokens -> naturally multi-host consistent, no rotation to fight. Read
-`reference/auth-modes.md` before choosing.
+Read [authentication details](reference/auth-modes.md) before choosing a mode.
 
-This tool is retired and maintained for retained recovery needs. A configuration audit uses
-`scripts/verify_config.py --json` locally; required reference failures are NOT READY. See
-[CONFIG.md](CONFIG.md) for discovery and separate companion profiles. Remote probes or
-deployment require an operational request for an existing deployment.
-
-## Workflow (thin)
+## Workflow
 
 1. Set `BOX_RCLONE_BINDER_CONFIG_DIR` to the private companion repository, then run
    `box-binder doctor` to probe rclone version / ssh / systemd.
@@ -60,7 +57,7 @@ for the step you are on, never all at once.
 | what NOT to do | `reference/anti-patterns.md` |
 | when it breaks | `reference/runbook.md` |
 
-## Hard rules (never violate)
+## Operational requirements
 
 1. **No rotating refresh_token on >1 host.** `box-binder` hard-rejects it (anti-pattern guard).
 2. **Secrets stay outside the public repository.** `machines.yaml` holds pointers (`*_ref`); execution
@@ -72,7 +69,7 @@ for the step you are on, never all at once.
 5. **Failures remain visible.** No hidden in-command retry; use `--host` for failed hosts. Broker
    slave retries reuse the master's valid token. `invalid_grant` requires reauthorization.
 
-## Acceptance gate (program-adjudicable)
+## Acceptance gate
 
 `python tests/run_gate.py` runs the original 10 signals; `python -m pytest tests` also exercises
 the runtime, deployment failures, token transport and broker distribution. Synthetic passes do

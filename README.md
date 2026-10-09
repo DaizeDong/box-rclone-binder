@@ -29,12 +29,13 @@ Keeping those outcomes separate prevents a configured host from being reported a
 
 [Read the full design philosophy](PHILOSOPHY.md).
 
-## What it is (and isn't)
+## Scope
 
-- **Is:** a focused CLI (`box-binder`) for checked Linux/systemd deployment, explicit refresh,
-  scheduled CCG mint or broker distribution, and read-only access validation.
-- **Isn't:** a single-machine helper (use plain `rclone config`), a generic cron templater, or a
-  general cloud sync tool. One job, three modules (deploy / refresh / healthcheck).
+The `box-binder` CLI maintains Linux/systemd deployment, explicit refresh,
+scheduled CCG mint or broker distribution, and read-only access validation through
+three modules: deploy, refresh and healthcheck. Use plain `rclone config` for a
+single host. Generic scheduling templates and general cloud synchronization are
+outside this tool's scope.
 
 ## Install
 
@@ -64,30 +65,22 @@ python tests/run_gate.py                                             # full mock
 
 ## Config
 
-`box-rclone-binder` is **config-bearing**, it reads a per-fleet inventory (`machines.yaml`: hosts,
-auth mode, and **pointers** to where secrets live). Full contract:
-[CONFIG.md](skills/box-rclone-binder/CONFIG.md).
+The tool reads `machines.yaml` with hosts, authentication modes and `*_ref` secret
+references. Keep real inventories versioned in a PRIVATE companion, with one
+`machines.yaml` per retained profile. Secret values stay in the configured backend;
+inline secrets are rejected. Execution resolves env/file sources; export values
+from `op`, `vault` or `aws-ssm` to one of those sources first.
 
-- **Mount (discovery order):** `-c/--config <path>` → `$BOX_RCLONE_BINDER_CONFIG` →
-  `$BOX_RCLONE_BINDER_CONFIG_DIR` → the private companion repository.
-  The selected path is retained even if missing; no selection = `EXIT_CONFIG (3)`
-  with private companion setup guidance.
-- **First time:**
-  ```bash
-  cd skills/box-rclone-binder
-  export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion  # an initialized private Git repository
-  python scripts/init_config.py                       # stamp its machines.yaml from the generated template
-  # edit hosts, keep secrets as *_ref pointers, then:
-  python scripts/verify_config.py --json              # local schema and required-reference readiness
-  ```
-- **Switch retained profiles:** select separate PRIVATE companions, each containing exactly
-  `machines.yaml`, for example `export BOX_RCLONE_BINDER_CONFIG=/path/to/private-profile-b/machines.yaml`.
-  The local verifier reports NOT READY when a required reference is missing. See the full
-  [discovery and switching contract](skills/box-rclone-binder/CONFIG.md).
-- **Secrets:** Mode B, `machines.yaml`, `*.env`, `*.pem`, `*.key`, `rclone.conf` stay outside the
-  public repository. Version real inventories in the private companion; only `*_ref` pointers
-  live in the inventory, while secret values stay in your backend
-  (`env`/`file`/`op`/`vault`/`aws-ssm`). `verify-config` hard-fails on any inline secret.
+Selection starts with `-c/--config`, then `BOX_RCLONE_BINDER_CONFIG`,
+`BOX_RCLONE_BINDER_CONFIG_DIR` and shared companion discovery. A selected missing
+file remains an error; no selection returns `EXIT_CONFIG (3)` with setup guidance.
+[CONFIG.md](skills/box-rclone-binder/CONFIG.md) defines the full discovery order,
+generated-template initialization, schema, secret references and profile switching.
+The local `scripts/verify_config.py --json` also checks required references and
+reports NOT READY when they are unavailable. `box-binder verify-config` checks schema.
+
+For this retired tool, initialize an inventory only for an existing deployment or
+retained recovery need. See [DATA.md](DATA.md) for storage and retirement.
 
 ## How to invoke
 
@@ -111,7 +104,7 @@ Execution resolves env/file secret sources; other providers need an external exp
 Cron installation, automatic alerts, and in-command retry/backoff are outside this runtime.
 
 - **One-time Box authorization is a human step** (login + Admin approve), deferred to the user; see
-  `skills/box-rclone-binder/reference/runbook.md`. Offline checks use synthetic inputs. Authorization,
+  [the runbook](skills/box-rclone-binder/reference/runbook.md). Offline checks use synthetic inputs. Authorization,
   actual SSH execution, timers, restarts and renewal across expiry require separate live acceptance.
 - CCG-native support is rclone-version dependent; `doctor` reports installed tools but does not
   test Box authorization or renewal across an expiry boundary.
