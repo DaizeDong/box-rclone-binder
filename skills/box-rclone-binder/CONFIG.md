@@ -23,7 +23,7 @@ The cardinal invariant: **`machines.yaml` never holds a secret value, only a poi
 1. `-c/--config <path>`, explicit flag (a file, or a dir holding `machines.yaml`).
 2. `$BOX_RCLONE_BINDER_CONFIG`, env var; a file path, or a dir holding `machines.yaml` (recommended; location-independent).
 3. `$BOX_RCLONE_BINDER_CONFIG_DIR`, accepted alias; a dir holding `machines.yaml`.
-4. `machines.yaml` in the private companion resolved by [Guards companion discovery](../../guards/COMPANION.md): `BOX_RCLONE_BINDER_DATA_DIR`, proven sibling companions, then home defaults (`~/.box-rclone-binder-config` and `~/.box-rclone-binder-data`).
+4. `machines.yaml` in the private companion resolved by [Guards companion discovery](../../guards/COMPANION.md): `BOX_RCLONE_BINDER_DATA_DIR`, then proven sibling companions. There is no home-directory default.
 
 A selected path is retained even when the file is missing; another inventory cannot silently
 replace it. Without a companion or explicit selection, initialization and verification exit
