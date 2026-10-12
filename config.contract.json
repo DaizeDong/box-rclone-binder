@@ -20,7 +20,7 @@
       "-c/--config",
       "BOX_RCLONE_BINDER_CONFIG",
       "BOX_RCLONE_BINDER_CONFIG_DIR",
-      "shared companion: BOX_RCLONE_BINDER_DATA_DIR, proven sibling, home defaults"
+      "shared companion: BOX_RCLONE_BINDER_DATA_DIR, then proven sibling (no home-directory location)"
     ],
     "required_fields": [
       "hosts[].host",
