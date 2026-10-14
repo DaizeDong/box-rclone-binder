@@ -12,8 +12,6 @@ Current: **v0.1.2**
 - Secret hygiene: pointer-only `machines.yaml`, inline-secret rejection, gitignore, scrubbed alerts.
 - Linux/systemd health, CCG mint and broker timers. Alert/classification helpers are separate
   from runtime scheduling and are not automatically dispatched.
-- 10-signal deterministic acceptance gate (`tests/run_gate.py`) using synthetic inputs.
-  Quote results only for the tested source and distinguish native/live checks from offline checks.
 
 ## Maintenance status
 

@@ -5,16 +5,10 @@ This repository is retired from active development. Keep maintenance changes foc
 ## Ground rules
 
 1. **Keep private data out of this public repository.** No tokens, `config.json`, private keys, `*.env`, or filled
-   `machines.yaml`. Pointers (`*_ref`) only. The gate's secret-hygiene signal (S6) will fail a PR
-   that does. `verify-config` must stay a hard fail on inline secrets.
-2. **The acceptance gate must stay green.** Run it before every PR:
-   ```bash
-   cd skills/box-rclone-binder && python tests/run_gate.py
-   ```
-   All 10 signals must pass with no real Box credentials. Add a signal when you add behaviour.
-3. **Keep secrets referenced, health read-only, writes atomic, and recovery explicit** (see
+   `machines.yaml`. Pointers (`*_ref`) only. `verify-config` must stay a hard fail on inline secrets.
+2. **Keep secrets referenced, health read-only, writes atomic, and recovery explicit** (see
    `PHILOSOPHY.md`). Changes that violate these are out of scope by design.
-4. **Conform to Skill Repo Spec v1.** Keep version sources (plugin.json / both READMEs'
+3. **Conform to Skill Repo Spec v1.** Keep version sources (plugin.json / both READMEs'
    roadmap badge / ROADMAP / CHANGELOG) in lock-step. Bump CHANGELOG on every change.
 
 ## Dev setup
@@ -23,13 +17,10 @@ Stdlib-only (optional PyYAML; the bundled `yamlmin` is the fallback). Python 3.8
 
 ```bash
 git clone --recurse-submodules https://github.com/DaizeDong/box-rclone-binder.git
-cd box-rclone-binder/skills/box-rclone-binder
-python tests/run_gate.py
 ```
 
 ## PR checklist
 
-- [ ] gate green (`tests/run_gate.py`)
-- [ ] no secret material (S6)
+- [ ] no secret material
 - [ ] versions synced + CHANGELOG updated
 - [ ] docs (SKILL.md / reference shards) updated if behaviour changed

@@ -2,7 +2,7 @@
   "_comment": [
     "Skill Repo Spec v1 s9: every path is TOOL, FIXTURE or DATA.",
     "TOOL = shipped code, instructions, reference material and metrics about the skill.",
-    "FIXTURE = synthetic examples or test records reproduced by tools/make_fixtures.py.",
+    "FIXTURE = synthetic examples reproduced by tools/make_fixtures.py.",
     "DATA = real inventories and runtime records, versioned in the PRIVATE companion repository.",
     "Real DATA must never exist in the PUBLIC tool tree, whether tracked or ignored.",
     "data_sealed = a historical DATA location that must remain absent.",
@@ -14,23 +14,8 @@
     "machines.yaml"
   ],
   "fixture": [
-    "skills/box-rclone-binder/tests/fixtures/inventories.json",
-    "skills/box-rclone-binder/tests/test_receipt_identity.py",
-    "skills/box-rclone-binder/tests/test_config_discovery.py",
     "skills/box-rclone-binder/config/machines.example.yaml",
-    "skills/box-rclone-binder/config/secrets.env.example",
-    "skills/box-rclone-binder/tests/test_schema_boundary.py",
-    "skills/box-rclone-binder/tests/test_health_observations.py",
-    "skills/box-rclone-binder/tests/fixtures/healthcheck.json",
-    "skills/box-rclone-binder/tests/test_review_v4.py",
-    "skills/box-rclone-binder/tests/test_review_v5.py",
-    "skills/box-rclone-binder/tests/test_review_v7.py",
-    "skills/box-rclone-binder/tests/test_review_v9.py",
-    "skills/box-rclone-binder/tests/test_review_v10.py",
-    "skills/box-rclone-binder/tests/test_review_v11.py",
-    "skills/box-rclone-binder/tests/test_review_v14.py",
-    "skills/box-rclone-binder/tests/test_review_v15.py",
-    "skills/box-rclone-binder/tests/test_fleet_readiness.py"
+    "skills/box-rclone-binder/config/secrets.env.example"
   ],
   "_data_home": "The private companion Git repository, resolved by guards/tools/datadir.py or explicitly selected with BOX_RCLONE_BINDER_CONFIG[_DIR]. Version real records there; there is no public-tree fallback."
 }

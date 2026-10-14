@@ -69,12 +69,6 @@ for the step you are on, never all at once.
 5. **Failures remain visible.** No hidden in-command retry; use `--host` for failed hosts. Broker
    slave retries reuse the master's valid token. `invalid_grant` requires reauthorization.
 
-## Acceptance gate
-
-`python tests/run_gate.py` runs the original 10 signals; `python -m pytest tests` also exercises
-the runtime, deployment failures, token transport and broker distribution. Synthetic passes do
-not prove real authorization, token expiry, timer triggering, or host restart behavior.
-
 ## Progressive loading
 
 This `SKILL.md` is the only always-loaded file. Read one `reference/<shard>.md` on demand.

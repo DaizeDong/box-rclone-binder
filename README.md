@@ -60,7 +60,6 @@ python scripts/box_binder.py verify-config -c "$BOX_RCLONE_BINDER_CONFIG" --json
 python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG" --dry-run # plan, touches nothing
 python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG"          # converge all hosts
 python scripts/box_binder.py healthcheck   -c "$BOX_RCLONE_BINDER_CONFIG" --json   # read-only probe + consistency
-python tests/run_gate.py                                             # full mock acceptance gate
 ```
 
 ## Config
@@ -89,7 +88,6 @@ token keeps expiring", "keep Box mounted across my servers", "multi-host rclone 
 
 ## Example output
 
-See the [generated synthetic health report](skills/box-rclone-binder/tests/fixtures/healthcheck.json).
 `healthy` describes the access probe. Consistency uses the runtime's reported settings; missing
 measurements appear in `unobserved_fields`. A null consistency result remains unknown, even when
 access succeeds. The runtime currently leaves the installed rclone version unobserved.

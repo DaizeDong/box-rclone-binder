@@ -39,5 +39,4 @@ box-binder doctor        --json
 box-binder verify-config --json
 box-binder healthcheck   --json
 box-binder status        --json
-python tests/run_gate.py     # full mock acceptance gate (no real Box needed)
 ```

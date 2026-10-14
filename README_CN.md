@@ -55,7 +55,6 @@ python scripts/box_binder.py verify-config -c "$BOX_RCLONE_BINDER_CONFIG" --json
 python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG" --dry-run # 只规划，不动任何状态
 python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG"          # 幂等铺到所有主机
 python scripts/box_binder.py healthcheck   -c "$BOX_RCLONE_BINDER_CONFIG" --json   # 只读探活 + 一致性
-python tests/run_gate.py                                             # 完整 mock 验收闸
 ```
 
 ## 配置
@@ -82,7 +81,6 @@ python tests/run_gate.py                                             # 完整 mo
 
 ## 示例输出
 
-查看[生成器产生的合成健康报告](skills/box-rclone-binder/tests/fixtures/healthcheck.json)。
 `healthy` 表示访问探针的结果。一致性比较使用远端 runtime 回传的配置；未观测字段列在
 `unobserved_fields` 中。`consistent: null` 表示证据不足，即使访问成功，也不能据此认定配置
 全部一致。当前 runtime 尚未测量远端 rclone 版本。

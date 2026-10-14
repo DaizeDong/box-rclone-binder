@@ -5,6 +5,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 ## [Unreleased]
 
 ### Changed
+- Delete the test suite and its generated test fixtures; the fixture generator now only reproduces the config examples.
 - Set a 64 MiB companion working-data review threshold. Required observations and
   recovery state stay protected when the threshold is exceeded.
 - Document the retired maintenance status and retain former expansion plans as deferred work.

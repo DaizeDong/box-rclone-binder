@@ -24,8 +24,7 @@
   self-heal; synchronized probes (429). Full list: [anti-patterns](../skills/box-rclone-binder/reference/anti-patterns.md).
 
 ## Verification and deferred evaluation
-- 10 signals (S1 to S10) in `tests/test_signals.py`, aggregated by `tests/run_gate.py` to JSON. Green
-  with no real Box credentials. The former v0.2 eval-lift (G1) and held-out trigger-rate
+- The former v0.2 eval-lift (G1) and held-out trigger-rate
   (G2) work remains deferred; synthetic checks do not establish live deployment.
 
 ## Scope
