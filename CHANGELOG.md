@@ -5,6 +5,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 ## [Unreleased]
 
 ### Changed
+- Privacy hooks now run from the local fleet-guards checkout named by `git config fleet.guards`; the `guards/` and `style/` submodules and the CI gate and fleet-sync workflows are removed. The companion resolver loads from the installed `fleet_guards` package.
 - Delete the test suite and its generated test fixtures; the fixture generator now only reproduces the config examples.
 - Set a 64 MiB companion working-data review threshold. Required observations and
   recovery state stay protected when the threshold is exceeded.

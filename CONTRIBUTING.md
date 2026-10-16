@@ -16,8 +16,11 @@ This repository is retired from active development. Keep maintenance changes foc
 Stdlib-only (optional PyYAML; the bundled `yamlmin` is the fallback). Python 3.8+.
 
 ```bash
-git clone --recurse-submodules https://github.com/DaizeDong/box-rclone-binder.git
+git clone https://github.com/DaizeDong/box-rclone-binder.git
+git -C box-rclone-binder config core.hooksPath .githooks
 ```
+
+The hooks run the privacy and dash checks from local fleet-guards and fleet-style checkouts named by `git config --global fleet.guards` and `fleet.style`; the companion resolver needs `pip install -e "$(git config --get fleet.guards)"`. A commit is blocked while either is unset.
 
 ## PR checklist
 

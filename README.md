@@ -46,7 +46,7 @@ outside this tool's scope.
 Or clone manually:
 
 ```bash
-git clone --recurse-submodules https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/box-rclone-binder
+git clone https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/box-rclone-binder
 ```
 
 ## Quick start

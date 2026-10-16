@@ -6,7 +6,7 @@
     "DATA = real inventories and runtime records, versioned in the PRIVATE companion repository.",
     "Real DATA must never exist in the PUBLIC tool tree, whether tracked or ignored.",
     "data_sealed = a historical DATA location that must remain absent.",
-    "Enforced by guards/tools/data_boundary.py through repository hooks and CI."
+    "Enforced by fleet-guards tools/data_boundary.py through the .githooks shims (git config fleet.guards)."
   ],
   "_audited": "2026-09-29 source audit: the controller reads inventories and prints results; no local runtime journal is shipped. Default discovery and initialization use the selected environment path or private companion, with no cwd or unversioned directory fallback. Initialization refuses destinations inside the tool tree. Real inventories and recorded results belong in the versioned private companion; remote token/bind state uses each host configuration and is not a tool-tree output. The historical root machines.yaml stays sealed. The empty data list records that there is no default repository-relative runtime output; it does not exempt caller-selected destinations from the private-data rule.",
   "data": [],
@@ -17,5 +17,5 @@
     "skills/box-rclone-binder/config/machines.example.yaml",
     "skills/box-rclone-binder/config/secrets.env.example"
   ],
-  "_data_home": "The private companion Git repository, resolved by guards/tools/datadir.py or explicitly selected with BOX_RCLONE_BINDER_CONFIG[_DIR]. Version real records there; there is no public-tree fallback."
+  "_data_home": "The private companion Git repository, resolved by fleet_guards.runtime (fleet-guards tools/datadir.py) or explicitly selected with BOX_RCLONE_BINDER_CONFIG[_DIR]. Version real records there; there is no public-tree fallback."
 }

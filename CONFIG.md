@@ -10,7 +10,7 @@ type, default, discovery step, secret backend and retained-profile switch.
 Select a PRIVATE companion containing exactly `machines.yaml` with
 `BOX_RCLONE_BINDER_CONFIG` or `BOX_RCLONE_BINDER_CONFIG_DIR`.
 The full contract also describes explicit CLI selection and shared discovery
-through `guards/tools/datadir.py`.
+through the installed `fleet_guards` package.
 The root scripts below delegate to `skills/box-rclone-binder/scripts/`:
 
 - `python scripts/init_config.py` writes the generated `machines.example.yaml`

@@ -38,7 +38,7 @@ def discover_config_path(explicit=None):
       1. explicit -c/--config (file, or dir holding machines.yaml)
       2. $BOX_RCLONE_BINDER_CONFIG       (file, or dir holding machines.yaml)
       3. $BOX_RCLONE_BINDER_CONFIG_DIR   (dir holding machines.yaml)
-      4. machines.yaml in the private companion resolved by guards/tools/datadir.py
+      4. machines.yaml in the private companion resolved by fleet_guards.runtime
 
     A selected path remains selected when its file is missing. Absence must not select an
     unrelated inventory. Without an override or companion, report an initialization error.
@@ -65,44 +65,21 @@ def discover_config_path(explicit=None):
 
 
 def _companion_config_path():
-    """<companion>/machines.yaml via the guards submodule's datadir.py, or None when no companion
-    resolves.
+    """<companion>/machines.yaml via the installed fleet_guards resolver, or None when no
+    companion resolves.
 
-    The resolver moved out of tools/ and into guards/ so there is one copy of it in the fleet
-    rather than one per repo. The two had already begun to diverge.
-
-    A MISSING resolver raises instead of returning None. Those two states used to be the same
-    answer here, and they mean opposite things: None is "this machine has no companion configured
-    yet", a normal uninitialized state, while a missing file means the submodule was never checked
-    out and NOTHING was consulted. Reporting the second as the first is how an unchecked-out guard
-    kit looks exactly like a clean install.
+    A missing fleet_guards package raises instead of returning None: None means this machine has
+    no companion configured yet, while a missing package means nothing was consulted.
     """
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
-    p = os.path.join(repo, "guards", "tools", "datadir.py")
-    if not os.path.isfile(p):
-        raise cfgmod.ConfigError(
-            "guards/tools/datadir.py is missing, so the companion resolver never ran. "
-            "The guards submodule is not checked out: run `git submodule update --init`. "
-            "This is not the same as having no companion configured, and must not be read as one.")
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("_dd_for_box", p)
-    if spec is None or spec.loader is None:
-        raise cfgmod.ConfigError(
-            "Cannot load guards/tools/datadir.py. Restore the guards submodule before "
-            "resolving a private companion.")
-    mod = importlib.util.module_from_spec(spec)
     try:
-        spec.loader.exec_module(mod)
-    except (ImportError, OSError) as exc:
+        from fleet_guards.runtime import companion_resolver
+    except ImportError as exc:
         raise cfgmod.ConfigError(
-            "The guards companion resolver could not load. Restore the guards submodule "
-            "and its dependencies.") from exc
-    fn = getattr(mod, "resolve_companion_root", None)
-    if not callable(fn):
-        raise cfgmod.ConfigError(
-            "The guards resolver lacks resolve_companion_root. Update the guards submodule.")
+            "fleet_guards is not installed, so the companion resolver never ran. Install it: "
+            'pip install -e "$(git config --get fleet.guards)"') from exc
     try:
-        root = fn("box-rclone-binder")
+        root = companion_resolver(source_root=repo).resolve_companion_root("box-rclone-binder")
     except (RuntimeError, ValueError, OSError) as exc:
         raise cfgmod.ConfigError("Private companion resolution failed: %s" % exc) from exc
     return os.path.join(str(root), CONFIG_BASENAME) if root else None

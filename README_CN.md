@@ -41,7 +41,7 @@ Box OAuth 的刷新令牌用过后就会轮换。多台主机共用这份令牌�
 或手动克隆：
 
 ```bash
-git clone --recurse-submodules https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/box-rclone-binder
+git clone https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/box-rclone-binder
 ```
 
 ## 快速开始
