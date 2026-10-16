@@ -8,14 +8,14 @@ type, default, discovery step, secret backend and retained-profile switch.
 ## Local configuration checks
 
 Select a PRIVATE companion containing exactly `machines.yaml` with
-`BOX_RCLONE_BINDER_CONFIG` or `BOX_RCLONE_BINDER_CONFIG_DIR`.
+`BOX_RCLONE_BINDER_CONFIG`.
 The full contract also describes explicit CLI selection and shared discovery
 through the installed `fleet_guards` package.
-The root scripts below delegate to `skills/box-rclone-binder/scripts/`:
+The scripts live in `skills/box-rclone-binder/scripts/`:
 
-- `python scripts/init_config.py` writes the generated `machines.example.yaml`
+- `python skills/box-rclone-binder/scripts/init_config.py` writes the generated `machines.example.yaml`
   template byte for byte to the selected inventory.
-- `python scripts/verify_config.py` prints the resolved path, validates schema and
+- `python skills/box-rclone-binder/scripts/verify_config.py` prints the resolved path, validates schema and
   checks required references. Missing required references report NOT READY and
   exit 3; this local check does not probe a remote host.
 

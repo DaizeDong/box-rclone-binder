@@ -22,8 +22,7 @@ The cardinal invariant: **`machines.yaml` never holds a secret value, only a poi
 
 1. `-c/--config <path>`, explicit flag (a file, or a dir holding `machines.yaml`).
 2. `$BOX_RCLONE_BINDER_CONFIG`, env var; a file path, or a dir holding `machines.yaml` (recommended; location-independent).
-3. `$BOX_RCLONE_BINDER_CONFIG_DIR`, accepted alias; a dir holding `machines.yaml`.
-4. `machines.yaml` in the private companion resolved by fleet-guards companion discovery (`fleet_guards.runtime`, see COMPANION.md in https://github.com/DaizeDong/fleet-guards): `BOX_RCLONE_BINDER_DATA_DIR`, then proven sibling companions. There is no home-directory default.
+3. `machines.yaml` in the private companion resolved by fleet-guards companion discovery (`fleet_guards.runtime`, see COMPANION.md in https://github.com/DaizeDong/fleet-guards): `BOX_RCLONE_BINDER_DATA_DIR`, then proven sibling companions. There is no home-directory default.
 
 A selected path is retained even when the file is missing; another inventory cannot silently
 replace it. Without a companion or explicit selection, initialization and verification exit
@@ -156,7 +155,7 @@ owner's backup policy; the public repository must never contain them.
 cd skills/box-rclone-binder
 
 # 1. Clone or initialize your private companion repository, then select its directory:
-export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion
+export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion
 python scripts/init_config.py                # writes the selected companion's machines.yaml
 
 # 2. Edit and version the inventory in that private repository; keep secrets as *_ref pointers.

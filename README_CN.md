@@ -49,7 +49,7 @@ git clone https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/b
 ```bash
 cd skills/box-rclone-binder
 export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/machines.yaml
-python scripts/init_config.py --out "$BOX_RCLONE_BINDER_CONFIG"
+python skills/box-rclone-binder/scripts/init_config.py --out "$BOX_RCLONE_BINDER_CONFIG"
 python scripts/box_binder.py doctor        -c "$BOX_RCLONE_BINDER_CONFIG" --json   # 检查已安装工具和 SSH，不验证 Box 授权
 python scripts/box_binder.py verify-config -c "$BOX_RCLONE_BINDER_CONFIG" --json   # schema + 禁内联密钥
 python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG" --dry-run # 只规划，不动任何状态
@@ -64,11 +64,11 @@ python scripts/box_binder.py healthcheck   -c "$BOX_RCLONE_BINDER_CONFIG" --json
 密钥值留在所选后端，清单内的明文密钥会被拒绝。执行阶段支持 env/file；
 `op`、`vault`、`aws-ssm` 的值需先导出到这两种来源之一。
 
-查找顺序从 `-c/--config` 开始，随后是 `BOX_RCLONE_BINDER_CONFIG`、
-`BOX_RCLONE_BINDER_CONFIG_DIR` 和共享伴生仓发现。选定文件缺失时仍报错；没有选定路径
+查找顺序从 `-c/--config` 开始，随后是 `BOX_RCLONE_BINDER_CONFIG`
+和共享伴生仓发现。选定文件缺失时仍报错；没有选定路径
 时返回 `EXIT_CONFIG (3)` 并给出设置指引。[CONFIG.md](skills/box-rclone-binder/CONFIG.md)
 规定完整发现顺序、合成模板初始化、字段、密钥引用和配置切换。
-本地 `scripts/verify_config.py --json` 还会检查必需引用，缺失时返回 NOT READY；
+本地 `skills/box-rclone-binder/scripts/verify_config.py --json` 还会检查必需引用，缺失时返回 NOT READY；
 `box-binder verify-config` 只检查结构。
 
 本工具已停止主动开发，只有已有部署或保留的恢复需求才需要初始化清单。

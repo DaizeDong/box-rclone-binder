@@ -39,60 +39,14 @@ class Locked(RuntimeError):
 
 # ---- cross-platform single-instance lock (broker) ----------------------------------------
 
-# Legacy constructor default retained for callers; FileLock uses OS ownership, not age.
-_STALE_LOCK_SECONDS = 900
-
-
-def _pid_alive(pid: int) -> bool:
-    """Best-effort cross-platform liveness probe.
-
-    Returns False only when the process is provably gone; on any uncertainty it returns True
-    so we never steal a lock that might still be held by a live process.
-    """
-    try:
-        pid = int(pid)
-    except (TypeError, ValueError):
-        return False
-    if pid <= 0:
-        return False
-    if os.name == "nt":
-        try:
-            import ctypes
-            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-            STILL_ACTIVE = 259
-            k = ctypes.windll.kernel32  # type: ignore[attr-defined]
-            h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-            if not h:
-                return False  # no such process / not openable as a live process
-            try:
-                code = ctypes.c_ulong()
-                if k.GetExitCodeProcess(h, ctypes.byref(code)):
-                    return code.value == STILL_ACTIVE
-                return True
-            finally:
-                k.CloseHandle(h)
-        except Exception:
-            return True  # cannot determine -> assume alive (fail safe: keep the lock)
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True  # exists but owned by another user
-    except OSError:
-        return True
-    return True
-
-
 class FileLock:
     """OS-owned exclusive lock; a crash releases ownership without stale-file deletion.
 
     The persistent file stores diagnostic PID metadata only. Age and PID guesses
-    never authorize taking a live owner's lock. Legacy constructor options remain
-    accepted for callers, but ownership comes from the OS lock.
+    never authorize taking a live owner's lock; ownership comes from the OS lock.
     """
 
-    def __init__(self, path, stale_after=_STALE_LOCK_SECONDS, pid_alive=None):
+    def __init__(self, path):
         self.path = path
         self._fd = None
 

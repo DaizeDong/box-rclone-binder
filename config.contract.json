@@ -13,13 +13,11 @@
     "discovery_document": "skills/box-rclone-binder/CONFIG.md",
     "environment": "BOX_RCLONE_BINDER_CONFIG",
     "aliases": [
-      "BOX_RCLONE_BINDER_CONFIG_DIR",
       "BOX_RCLONE_BINDER_DATA_DIR"
     ],
     "precedence": [
       "-c/--config",
       "BOX_RCLONE_BINDER_CONFIG",
-      "BOX_RCLONE_BINDER_CONFIG_DIR",
       "shared companion: BOX_RCLONE_BINDER_DATA_DIR, then proven sibling (no home-directory location)"
     ],
     "required_fields": [
@@ -28,14 +26,14 @@
       "secrets references required by each host auth_mode"
     ],
     "initializer": {
-      "path": "scripts/init_config.py",
+      "path": "skills/box-rclone-binder/scripts/init_config.py",
       "args": [
         "--out",
         "{output}"
       ]
     },
     "doctor": {
-      "path": "scripts/verify_config.py",
+      "path": "skills/box-rclone-binder/scripts/verify_config.py",
       "args": [
         "--json"
       ]

@@ -39,7 +39,7 @@ Read [authentication details](reference/auth-modes.md) before choosing a mode.
 
 ## Workflow
 
-1. Set `BOX_RCLONE_BINDER_CONFIG_DIR` to the private companion repository, then run
+1. Set `BOX_RCLONE_BINDER_CONFIG` to the private companion repository, then run
    `box-binder doctor` to probe rclone version / ssh / systemd.
 2. `box-binder verify-config`, schema + secret-pointer-only + NO inline secrets (hard-fails otherwise).
 3. `box-binder deploy --dry-run`, inspect complete runtime and required credential paths; `deploy` installs them and checks timer state.

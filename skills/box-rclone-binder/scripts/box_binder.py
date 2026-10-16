@@ -28,7 +28,6 @@ from boxbinder.drivers import SSHHostDriver
 
 
 CONFIG_ENV = "BOX_RCLONE_BINDER_CONFIG"
-CONFIG_ENV_DIR = "BOX_RCLONE_BINDER_CONFIG_DIR"
 CONFIG_BASENAME = "machines.yaml"
 
 
@@ -37,8 +36,7 @@ def discover_config_path(explicit=None):
 
       1. explicit -c/--config (file, or dir holding machines.yaml)
       2. $BOX_RCLONE_BINDER_CONFIG       (file, or dir holding machines.yaml)
-      3. $BOX_RCLONE_BINDER_CONFIG_DIR   (dir holding machines.yaml)
-      4. machines.yaml in the private companion resolved by fleet_guards.runtime
+      3. machines.yaml in the private companion resolved by fleet_guards.runtime
 
     A selected path remains selected when its file is missing. Absence must not select an
     unrelated inventory. Without an override or companion, report an initialization error.
@@ -52,15 +50,12 @@ def discover_config_path(explicit=None):
     val = os.environ.get(CONFIG_ENV)
     if val:
         return as_file(val)
-    d = os.environ.get(CONFIG_ENV_DIR)
-    if d:
-        return os.path.join(os.path.abspath(os.path.expanduser(d)), CONFIG_BASENAME)
     companion = _companion_config_path()
     if companion is None:
         raise cfgmod.ConfigError(
             "No private box-rclone-binder companion is configured. Clone or initialize a "
-            "private companion repository, set BOX_RCLONE_BINDER_CONFIG_DIR to its directory, "
-            "then run scripts/init_config.py. Use -c to select another private inventory.")
+            "private companion repository, set BOX_RCLONE_BINDER_CONFIG to its directory, "
+            "then run skills/box-rclone-binder/scripts/init_config.py. Use -c to select another private inventory.")
     return companion
 
 
@@ -262,7 +257,7 @@ def build_parser():
     p.add_argument("command", choices=list(COMMANDS))
     p.add_argument("-c", "--config", default=None,
                     help="path to machines.yaml (file or dir). If omitted, resolved via "
-                         "$BOX_RCLONE_BINDER_CONFIG / $BOX_RCLONE_BINDER_CONFIG_DIR / "
+                         "$BOX_RCLONE_BINDER_CONFIG / "
                          "the private companion repository")
     p.add_argument("-H", "--host", action="append", default=[])
     p.add_argument("--dry-run", action="store_true")

@@ -54,7 +54,7 @@ git clone https://github.com/DaizeDong/box-rclone-binder.git ~/.claude/plugins/b
 ```bash
 cd skills/box-rclone-binder
 export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion/machines.yaml
-python scripts/init_config.py --out "$BOX_RCLONE_BINDER_CONFIG"
+python skills/box-rclone-binder/scripts/init_config.py --out "$BOX_RCLONE_BINDER_CONFIG"
 python scripts/box_binder.py doctor        -c "$BOX_RCLONE_BINDER_CONFIG" --json   # discover installed tools and SSH; no Box authorization test
 python scripts/box_binder.py verify-config -c "$BOX_RCLONE_BINDER_CONFIG" --json   # schema + no inline secrets
 python scripts/box_binder.py deploy        -c "$BOX_RCLONE_BINDER_CONFIG" --dry-run # plan, touches nothing
@@ -70,12 +70,12 @@ references. Keep real inventories versioned in a PRIVATE companion, with one
 inline secrets are rejected. Execution resolves env/file sources; export values
 from `op`, `vault` or `aws-ssm` to one of those sources first.
 
-Selection starts with `-c/--config`, then `BOX_RCLONE_BINDER_CONFIG`,
-`BOX_RCLONE_BINDER_CONFIG_DIR` and shared companion discovery. A selected missing
+Selection starts with `-c/--config`, then `BOX_RCLONE_BINDER_CONFIG`
+and shared companion discovery. A selected missing
 file remains an error; no selection returns `EXIT_CONFIG (3)` with setup guidance.
 [CONFIG.md](skills/box-rclone-binder/CONFIG.md) defines the full discovery order,
 generated-template initialization, schema, secret references and profile switching.
-The local `scripts/verify_config.py --json` also checks required references and
+The local `skills/box-rclone-binder/scripts/verify_config.py --json` also checks required references and
 reports NOT READY when they are unavailable. `box-binder verify-config` checks schema.
 
 For this retired tool, initialize an inventory only for an existing deployment or

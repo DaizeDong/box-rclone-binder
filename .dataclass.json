@@ -17,5 +17,5 @@
     "skills/box-rclone-binder/config/machines.example.yaml",
     "skills/box-rclone-binder/config/secrets.env.example"
   ],
-  "_data_home": "The private companion Git repository, resolved by fleet_guards.runtime (fleet-guards tools/datadir.py) or explicitly selected with BOX_RCLONE_BINDER_CONFIG[_DIR]. Version real records there; there is no public-tree fallback."
+  "_data_home": "The private companion Git repository, resolved by fleet_guards.runtime (fleet-guards tools/datadir.py) or explicitly selected with BOX_RCLONE_BINDER_CONFIG. Version real records there; there is no public-tree fallback."
 }

@@ -9,8 +9,7 @@ with --force yields byte-identical output (E4). The template carries ZERO secret
 Discovery this skill uses (also in CONFIG.md, E2). box-binder resolves machines.yaml from, in order:
   1. -c/--config <path>
   2. $BOX_RCLONE_BINDER_CONFIG        (file, or dir holding machines.yaml)
-  3. $BOX_RCLONE_BINDER_CONFIG_DIR    (dir holding machines.yaml)
-  4. machines.yaml in the private companion repository
+  3. machines.yaml in the private companion repository
 
 Usage:
   python scripts/init_config.py [--out <path>] [--force]

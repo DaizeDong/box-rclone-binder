@@ -21,8 +21,8 @@ def host_settings(host):
     return settings
 
 
-def render_secrets_env(host):
-    """Compatibility name for non-secret runtime location metadata."""
+def render_host_env(host):
+    """Non-secret runtime location metadata for the host's secrets.env."""
     return 'BOX_BINDER_HOST_FILE=%s/host.json\n' % host.get('config_dir', '/etc/box-binder')
 
 
@@ -63,7 +63,7 @@ def runtime_manifest(host):
         artifacts[path] = {'content': content, 'mode': mode}
     add(cfg + '/host.json', json.dumps(host_settings(host), sort_keys=True, indent=2) + '\n')
     add('/opt/box-binder/deployment.json', json.dumps(host_settings(host), sort_keys=True, indent=2) + '\n')
-    add(cfg + '/secrets.env', render_secrets_env(host))
+    add(cfg + '/secrets.env', render_host_env(host))
     add('/opt/box-binder/box_runtime.py', (SCRIPTS / 'box_runtime.py').read_text(encoding='utf-8'), 0o644)
     for source in sorted((SCRIPTS / 'boxbinder').glob('*.py')):
         add('/opt/box-binder/boxbinder/' + source.name, source.read_text(encoding='utf-8'), 0o644)

@@ -9,8 +9,7 @@ configs is provable) and validates schema + pointer-only secrets + no inline sec
 Discovery order (first hit wins; same as box_binder.discover_config_path):
   1. -c/--config <path>                (file, or dir holding machines.yaml)
   2. $BOX_RCLONE_BINDER_CONFIG         (file, or dir holding machines.yaml)
-  3. $BOX_RCLONE_BINDER_CONFIG_DIR     (dir holding machines.yaml)
-  4. machines.yaml in the private companion repository
+  3. machines.yaml in the private companion repository
 
 Usage:
   python scripts/verify_config.py [-c <path>] [--json]
@@ -39,8 +38,7 @@ def main(argv=None):
         description="Resolve and validate a box-rclone-binder machines.yaml (E5 hot-swap aware).")
     ap.add_argument("-c", "--config", default=None,
                     help="path to machines.yaml (file or dir). If omitted, resolved via "
-                         "$%s / $%s / the private companion repository" %
-                         (cli.CONFIG_ENV, cli.CONFIG_ENV_DIR))
+                         "$%s / the private companion repository" % cli.CONFIG_ENV)
     ap.add_argument("--json", action="store_true", help="machine-readable verdict")
     a = ap.parse_args(argv)
 

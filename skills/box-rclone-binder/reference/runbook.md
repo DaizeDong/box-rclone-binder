@@ -34,7 +34,7 @@ on the target machines; a successful offline test does not establish either. Sta
 ## Health & verification commands (read-only)
 
 ```bash
-export BOX_RCLONE_BINDER_CONFIG_DIR=/path/to/private-companion
+export BOX_RCLONE_BINDER_CONFIG=/path/to/private-companion
 box-binder doctor        --json
 box-binder verify-config --json
 box-binder healthcheck   --json
